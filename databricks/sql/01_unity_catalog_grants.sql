@@ -1,34 +1,34 @@
 -- Phase 5: Unity Catalog least-privilege grant template
 --
--- Replace the group names below with the actual Databricks account/workspace
--- groups during deployment. Keep grants group-based; do not grant directly to
--- individual users.
+-- The current workspace catalog is the managed catalog:
+--   netcareaidatabricks
+--
+-- Replace the group names below with actual Databricks account/workspace groups
+-- during deployment. Keep grants group-based; do not grant directly to users.
 
 -- Example role model:
 --   netcare-data-engineers : Bronze/Silver write, Gold read
 --   netcare-ml-engineers   : Gold read, ML write
 --   netcare-analysts       : Gold read, ML read
 --   netcare-ml-serving     : ML read
---
--- These statements are intentionally commented until deployment identities
--- are confirmed.
 
--- GRANT USE CATALOG ON CATALOG nectare TO `netcare-data-engineers`;
--- GRANT USE SCHEMA ON SCHEMA nectare.bronze TO `netcare-data-engineers`;
--- GRANT SELECT, MODIFY ON SCHEMA nectare.bronze TO `netcare-data-engineers`;
+-- Example grants:
+-- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-data-engineers`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.bronze TO `netcare-data-engineers`;
+-- GRANT SELECT, MODIFY ON SCHEMA netcareaidatabricks.bronze TO `netcare-data-engineers`;
 --
--- GRANT USE CATALOG ON CATALOG nectare TO `netcare-ml-engineers`;
--- GRANT USE SCHEMA ON SCHEMA nectare.gold TO `netcare-ml-engineers`;
--- GRANT SELECT ON SCHEMA nectare.gold TO `netcare-ml-engineers`;
--- GRANT USE SCHEMA ON SCHEMA nectare.ml TO `netcare-ml-engineers`;
--- GRANT SELECT, MODIFY ON SCHEMA nectare.ml TO `netcare-ml-engineers`;
+-- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-ml-engineers`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.gold TO `netcare-ml-engineers`;
+-- GRANT SELECT ON SCHEMA netcareaidatabricks.gold TO `netcare-ml-engineers`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-engineers`;
+-- GRANT SELECT, MODIFY ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-engineers`;
 --
--- GRANT USE CATALOG ON CATALOG nectare TO `netcare-analysts`;
--- GRANT USE SCHEMA ON SCHEMA nectare.gold TO `netcare-analysts`;
--- GRANT SELECT ON SCHEMA nectare.gold TO `netcare-analysts`;
--- GRANT USE SCHEMA ON SCHEMA nectare.ml TO `netcare-analysts`;
--- GRANT SELECT ON SCHEMA nectare.ml TO `netcare-analysts`;
+-- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-analysts`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.gold TO `netcare-analysts`;
+-- GRANT SELECT ON SCHEMA netcareaidatabricks.gold TO `netcare-analysts`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.ml TO `netcare-analysts`;
+-- GRANT SELECT ON SCHEMA netcareaidatabricks.ml TO `netcare-analysts`;
 --
--- GRANT USE CATALOG ON CATALOG nectare TO `netcare-ml-serving`;
--- GRANT USE SCHEMA ON SCHEMA nectare.ml TO `netcare-ml-serving`;
--- GRANT SELECT ON SCHEMA nectare.ml TO `netcare-ml-serving`;
+-- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-ml-serving`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-serving`;
+-- GRANT SELECT ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-serving`;
