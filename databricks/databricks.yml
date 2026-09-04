@@ -16,17 +16,24 @@ variables:
     description: Unity Catalog registered model name
     default: nectare.ml.readmission_model
 
-# The bundle lives under databricks/, while application code and notebooks
-# live at the repository root. sync.paths explicitly includes those shared
-# directories, which is required when files live outside the bundle root.
+# Build the application as a Python wheel so Databricks jobs receive the
+# src package through the task environment instead of relying on sys.path.
+# The project pyproject.toml lives one level above this bundle directory.
+artifacts:
+  default:
+    type: whl
+    path: ..
+    build: uv build --wheel
+    dynamic_version: true
+
+# The bundle lives under databricks/, while notebooks and application code
+# live at the repository root. sync.paths includes those shared directories.
 sync:
   paths:
     - .
     - ../src
     - ../notebooks
 
-# Each target represents a separate Databricks deployment environment.
-# DEV is pinned to the validated GCP workspace. Credentials remain outside Git.
 targets:
   dev:
     mode: development
