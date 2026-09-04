@@ -189,6 +189,29 @@ The Phase 6 quality gate requires:
 
 Registration and promotion are separate operations. A registered model version receives the `champion` Unity Catalog alias only after the promotion gate passes. Unity Catalog aliases are used instead of legacy MLflow model stages.
 
+### Recall threshold and current remediation
+
+Recall is a deliberate quality constraint because the readmission use case must avoid allowing a candidate model with inadequate detection of positive readmission cases into the governed promotion path.
+
+During the first Databricks Phase 6 execution, the quality gate reported:
+
+```text
+Candidate rejected by Phase 6 quality gate: ('recall failed',)
+```
+
+The initial failure was caused by an implementation defect: the training helpers logged accuracy and ROC-AUC but did not calculate the `recall` metric. The quality gate therefore treated the missing recall value as `0.0` and correctly rejected the candidate.
+
+This has now been fixed in both training paths. Logistic Regression and HistGradientBoosting evaluation now explicitly calculate recall using the test predictions and return it with the candidate metrics. The quality gate itself has **not** been weakened.
+
+The current Databricks run is validating the corrected implementation against the real GCP dataset. We will use the actual resulting recall value to determine whether the trained candidate genuinely meets the ≥0.60 threshold. If the corrected model is genuinely below the threshold, the remediation will be model improvement—such as threshold tuning, class weighting, feature/model changes and validation—not lowering the governance requirement.
+
+The previously measured local development results remain above the threshold:
+
+- Logistic Regression recall: **0.692**
+- HistGradientBoosting recall: **0.628**
+
+These are development/assessment results and must not be interpreted as production clinical performance claims.
+
 ## 7. Current model baseline
 
 The leakage-safe local pipeline currently evaluates:
@@ -267,6 +290,8 @@ The current environment model is:
 ```
 
 The Databricks training notebook is now aligned to the GCP-only architecture and the current leakage-safe training pipeline. It accepts environment-specific catalog, experiment and registered-model parameters from the Databricks Bundle.
+
+The DEV training job currently uses a small single-node cluster for cost-effective Phase 6 validation. This is a validation configuration, not a claim that production workloads should always use a single node.
 
 Actual workspace deployment remains environment-dependent. The repository contains the deployment definitions, but a real deployment requires the target GCP/Databricks workspace and authenticated deployment configuration.
 
@@ -436,8 +461,10 @@ Actual cloud deployment and validation remain environment-dependent.
 - Databricks Bundle foundation
 - environment targets
 - training job resource
+- successful DEV cluster provisioning and notebook execution
+- GCS access configured through the Databricks compute service account
 
-Actual workspace deployment and execution remain pending.
+Actual production-grade workflow hardening remains pending.
 
 ### Phase 5 — Unity Catalog
 
@@ -453,6 +480,8 @@ Actual workspace deployment and execution remain pending.
 
 **Status: IN PROGRESS — CURRENT PHASE**
 
+Completed/validated foundations:
+
 - quality gate implementation
 - candidate-vs-production comparison
 - Unity Catalog alias helpers
@@ -461,6 +490,16 @@ Actual workspace deployment and execution remain pending.
 - CI quality cleanup
 - production preprocessing consistency fix
 - GCP-only Databricks training notebook alignment
+- Databricks Bundle deployment
+- GCP IAM permission required for Databricks compute to read the training dataset
+- Databricks execution reaching candidate evaluation
+- correction of missing recall calculation in model evaluation
+
+Current validation:
+
+- corrected training code is deployed through the Databricks Bundle;
+- the current DEV run is validating the actual candidate recall against the ≥0.60 quality gate;
+- the quality gate remains strict and will reject a genuinely underperforming candidate.
 
 Remaining Phase 6 work: integrate the full candidate registration/promotion flow with the Databricks workspace and validate it end-to-end against the Unity Catalog environment.
 
