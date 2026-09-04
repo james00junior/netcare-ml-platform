@@ -29,7 +29,7 @@ def register_model(
     artifacts: dict[str, str] | None = None,
     registered_model_name: str | None = None,
 ) -> str:
-    """Log a model to MLflow and optionally register it in Unity Catalog."""
+    """Log a model and return its registered version when UC registration is enabled."""
     del model_name, y_sample
     registered_model_name = registered_model_name or settings.registered_model_name
 
@@ -48,19 +48,18 @@ def register_model(
             preds = model.predict(X_sample)
             signature = infer_signature(X_sample, preds)
         except (ValueError, TypeError, MlflowException):
-            # Signature inference is optional; model logging must still proceed.
-            pass
+            signature = None
 
         model_type = type(model).__name__
         if "XGB" in model_type:
-            mlflow.xgboost.log_model(
+            model_info = mlflow.xgboost.log_model(
                 model,
                 artifact_path="model",
                 signature=signature,
                 registered_model_name=registered_model_name,
             )
         else:
-            mlflow.sklearn.log_model(
+            model_info = mlflow.sklearn.log_model(
                 model,
                 artifact_path="model",
                 signature=signature,
@@ -71,7 +70,8 @@ def register_model(
             for name, path in artifacts.items():
                 mlflow.log_artifact(path, artifact_path=name)
 
-        return run.info.run_id
+        registered_version = getattr(model_info, "registered_model_version", None)
+        return str(registered_version or run.info.run_id)
 
 
 def load_model(model_uri: str) -> Any:
