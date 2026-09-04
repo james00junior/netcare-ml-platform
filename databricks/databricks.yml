@@ -15,6 +15,9 @@ variables:
   registered_model_name:
     description: Unity Catalog registered model name
     default: netcareaidatabricks.default.readmission_model
+  serving_model_version:
+    description: Registered model version deployed to the serving endpoint
+    default: "1"
 
 artifacts:
   default:
