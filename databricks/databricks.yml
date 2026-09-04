@@ -16,21 +16,11 @@ variables:
     description: Unity Catalog registered model name
     default: nectare.ml.readmission_model
 
-# Build the application as a Python wheel so Databricks jobs receive the
-# src package through the task environment instead of relying on sys.path.
-# The project pyproject.toml lives one level above this bundle directory.
-artifacts:
-  default:
-    type: whl
-    path: ..
-    build: uv build --wheel
-    dynamic_version: true
-
-# The bundle lives under databricks/, while notebooks and application code
-# live at the repository root. sync.paths includes those shared directories.
+# The training notebook imports the synced src package directly.
+# No Python wheel is required for this notebook task, so deployments avoid
+# the extra wheel build/upload step.
 sync:
   paths:
-    - .
     - ../src
     - ../notebooks
 
