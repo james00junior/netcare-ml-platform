@@ -6,11 +6,17 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: write
+
 jobs:
   quality:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -22,14 +28,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,api]"
 
-      - name: Lint
+      - name: Apply Ruff fixes
+        run: ruff check --fix src tests api
+
+      - name: Apply Black formatting
+        run: black src tests api
+
+      - name: Verify lint
         run: ruff check src tests api
 
-      - name: Format check
+      - name: Verify formatting
         run: black --check src tests api
 
       - name: Run tests
         run: pytest tests/ -v --cov=src --cov-report=xml
+
+      - name: Commit automated cleanup
+        run: |
+          if git diff --quiet; then
+            echo "No automated cleanup changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests api
+          git commit -m "chore: apply lint and formatting fixes"
+          git push origin main
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
