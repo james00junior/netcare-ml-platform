@@ -640,3 +640,40 @@ Do not introduce Azure resources, Azure deployment instructions or Azure-specifi
 ## 18. Environment information required for cloud validation
 
 When the repository implementation is ready for actual Databricks/GCP deployment validation, configure the environment with the appropriate authenticated GCP and Databricks credentials and workspace settings. Never commit credentials to the repository.
+
+## 19. Production ML engineering approach
+
+This project deliberately treats each phase as an **engineering contract**, not simply a collection of implemented files. A phase is only considered complete when its implementation, tests, integration behavior and operational evidence satisfy its acceptance criteria.
+
+This approach is valuable for production ML engineering for several reasons:
+
+1. **Prevents false completion** — partially implemented infrastructure is explicitly recorded as partial rather than being presented as production-ready.
+2. **Makes integration failures visible early** — cloud permissions, compute configuration, registry behavior and deployment assumptions are validated before the system depends on them downstream.
+3. **Preserves engineering traceability** — code changes, tests, deployment configuration and README evidence remain aligned in GitHub.
+4. **Encourages reproducibility** — repeated execution is used to distinguish a reliable workflow from a one-off successful run.
+5. **Protects model quality** — quality gates remain strict; infrastructure failures are fixed rather than hidden by weakening acceptance criteria.
+6. **Separates implementation from validation** — having code for a capability does not automatically mean that the capability works in the target production environment.
+7. **Supports controlled progression** — later phases build on verified foundations instead of accumulating untested assumptions.
+8. **Improves operational readiness** — production ML requires more than model accuracy; it requires governed data, secure compute, reproducible deployment, observability, rollback and lifecycle controls.
+
+The practical principle is:
+
+```text
+Implement
+   ↓
+Test
+   ↓
+Integrate
+   ↓
+Run in the target environment
+   ↓
+Collect evidence
+   ↓
+Document the result
+   ↓
+Only then mark the phase complete
+```
+
+This is intentionally slower than declaring a feature complete as soon as the code exists, but it produces a much stronger production engineering result. It reduces the risk of discovering late in the project that an earlier supposedly completed phase does not actually work when connected to the real cloud platform.
+
+For this repository, **"DONE" means verified, not merely implemented.**
