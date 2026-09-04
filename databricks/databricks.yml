@@ -17,7 +17,7 @@ variables:
     default: netcareaidatabricks.default.readmission_model
   serving_model_version:
     description: Registered model version deployed to the serving endpoint
-    default: "4"
+    default: "5"
 
 artifacts:
   default:
@@ -45,7 +45,7 @@ targets:
     workspace:
       host: ${DATABRICKS_HOST_STAGING}
     variables:
-      catalog_name: netcareaidatabricks
+      catalog_name: netcareaidabricks
 
   prod:
     mode: production
