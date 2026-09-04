@@ -203,7 +203,7 @@ The initial failure was caused by an implementation defect: the training helpers
 
 This has now been fixed in both training paths. Logistic Regression and HistGradientBoosting evaluation now explicitly calculate recall using the test predictions and return it with the candidate metrics. The quality gate itself has **not** been weakened.
 
-The current Databricks run is validating the corrected implementation against the real GCP dataset. We will use the actual resulting recall value to determine whether the trained candidate genuinely meets the ≥0.60 threshold. If the corrected model is genuinely below the threshold, the remediation will be model improvement—such as threshold tuning, class weighting, feature/model changes and validation—not lowering the governance requirement.
+The corrected Databricks execution subsequently completed successfully, confirming that the candidate now reaches and passes the Phase 6 quality gate with recall available to the evaluation logic.
 
 The previously measured local development results remain above the threshold:
 
@@ -289,9 +289,40 @@ The current environment model is:
               Training / Serving
 ```
 
-The Databricks training notebook is now aligned to the GCP-only architecture and the current leakage-safe training pipeline. It accepts environment-specific catalog, experiment and registered-model parameters from the Databricks Bundle.
+The Databricks training notebook is aligned to the GCP-only architecture and the current leakage-safe training pipeline. It accepts environment-specific catalog, experiment and registered-model parameters from the Databricks Bundle.
 
 The DEV training job currently uses a small single-node cluster for cost-effective Phase 6 validation. This is a validation configuration, not a claim that production workloads should always use a single node.
+
+### Databricks runtime versus model-training time
+
+The observed DEV job runtime must be interpreted carefully. A successful Phase 6 Databricks run took approximately **8 minutes overall**, but this does **not** mean the simple readmission models required eight minutes to train.
+
+The majority of the runtime is infrastructure and environment startup overhead, including:
+
+1. Databricks cluster provisioning;
+2. Databricks runtime startup;
+3. Spark initialization;
+4. installation of the project Python wheel and dependencies;
+5. notebook/task initialization;
+6. cloud authentication and data-access setup.
+
+The actual model training and candidate evaluation are lightweight and complete in a small fraction of the total job duration. The current dataset is also small, with the GCS CSV being approximately 154 KB.
+
+This distinction is important when evaluating platform performance:
+
+```text
+Databricks Job Runtime
+        │
+        ├── Cluster provisioning / startup  ← dominant DEV overhead
+        ├── Runtime initialization
+        ├── Dependency / wheel installation
+        ├── Notebook initialization
+        └── ML execution                     ← lightweight; seconds-scale
+```
+
+The current single-node cluster is therefore a **validation configuration** rather than a performance benchmark. For production, compute strategy should be selected according to workload size, concurrency, latency requirements and cost. Appropriate approaches may include managed job compute, scheduled workloads, reuse of appropriately configured compute, or other Databricks compute strategies that avoid unnecessary startup overhead for latency-sensitive workloads.
+
+The key engineering conclusion is that the observed eight-minute wall-clock runtime is primarily **platform startup overhead**, not evidence that the model-training algorithm is computationally expensive.
 
 Actual workspace deployment remains environment-dependent. The repository contains the deployment definitions, but a real deployment requires the target GCP/Databricks workspace and authenticated deployment configuration.
 
@@ -494,11 +525,12 @@ Completed/validated foundations:
 - GCP IAM permission required for Databricks compute to read the training dataset
 - Databricks execution reaching candidate evaluation
 - correction of missing recall calculation in model evaluation
+- successful DEV Databricks training execution after the recall fix
 
 Current validation:
 
 - corrected training code is deployed through the Databricks Bundle;
-- the current DEV run is validating the actual candidate recall against the ≥0.60 quality gate;
+- the DEV run completed successfully after training, evaluation and quality-gate validation;
 - the quality gate remains strict and will reject a genuinely underperforming candidate.
 
 Remaining Phase 6 work: integrate the full candidate registration/promotion flow with the Databricks workspace and validate it end-to-end against the Unity Catalog environment.
@@ -589,14 +621,4 @@ Do not introduce Azure resources, Azure deployment instructions or Azure-specifi
 
 ## 18. Environment information required for cloud validation
 
-When the repository implementation is ready for actual Databricks/GCP deployment validation, the user will provide non-secret environment configuration such as:
-
-- GCP project ID;
-- GCP region;
-- GCS bucket name;
-- Databricks workspace URL;
-- Databricks authentication method;
-- Unity Catalog availability and target catalog;
-- any required non-secret deployment identifiers.
-
-**Secrets, access tokens and passwords must not be committed to GitHub or pasted into source files.** They should be supplied through the appropriate local/CI secret mechanism when deployment is performed.
+When the repository implementation is ready for actual Databricks/GCP deployment validation, configure the environment with the appropriate authenticated GCP and Databricks credentials and workspace settings. Never commit credentials to the repository.
