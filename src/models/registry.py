@@ -2,8 +2,8 @@
 Model registry helpers (MLflow).
 
 Provides a thin abstraction so the rest of the codebase does not
-depend directly on MLflow APIs. Ready for Databricks Unity Catalog
-or a local MLflow tracking server.
+depend directly on MLflow APIs. Supports Databricks Unity Catalog
+with aliases for governed candidate/champion lifecycle management.
 """
 
 from pathlib import Path
@@ -29,13 +29,12 @@ def register_model(
     artifacts: Optional[Dict[str, str]] = None,
     registered_model_name: Optional[str] = None,
 ) -> str:
-    """
-    Log a model to MLflow and optionally register it.
-
-    Returns the MLflow run ID.
-    """
+    """Log a model to MLflow and optionally register it in Unity Catalog."""
+    del model_name, y_sample
     registered_model_name = registered_model_name or settings.registered_model_name
 
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.set_registry_uri(settings.mlflow_registry_uri)
     mlflow.set_experiment(settings.experiment_name)
 
     with mlflow.start_run() as run:
@@ -52,7 +51,6 @@ def register_model(
             # Signature inference is optional; model logging must still proceed.
             pass
 
-        # Detect model type for the correct flavour
         model_type = type(model).__name__
         if "XGB" in model_type:
             mlflow.xgboost.log_model(
@@ -76,18 +74,39 @@ def register_model(
         return run.info.run_id
 
 
-def load_model(
-    model_uri: str,
-) -> Any:
-    """
-    Load a model from an MLflow URI.
-
-    Examples
-    --------
-    - "models:/netcare-readmission-model/Production"
-    - "runs:/<run_id>/model"
-    """
+def load_model(model_uri: str) -> Any:
+    """Load a model from an MLflow URI or Unity Catalog alias."""
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    mlflow.set_registry_uri(settings.mlflow_registry_uri)
     return mlflow.pyfunc.load_model(model_uri)
+
+
+def get_model_version(model_name: str, alias: str = "champion") -> str:
+    """Return the model version currently assigned to a Unity Catalog alias."""
+    mlflow.set_registry_uri(settings.mlflow_registry_uri)
+    client = mlflow.MlflowClient()
+    model_version = client.get_model_version_by_alias(model_name, alias)
+    return str(model_version.version)
+
+
+def set_model_alias(
+    model_name: str,
+    version: Union[str, int],
+    alias: str = "champion",
+) -> None:
+    """Assign a governed Unity Catalog alias to a registered model version."""
+    mlflow.set_registry_uri(settings.mlflow_registry_uri)
+    client = mlflow.MlflowClient()
+    client.set_registered_model_alias(model_name, alias, str(version))
+
+
+def load_model_alias(
+    model_name: Optional[str] = None,
+    alias: str = "champion",
+) -> Any:
+    """Load the model version assigned to a Unity Catalog alias."""
+    name = model_name or settings.registered_model_name
+    return load_model(f"models:/{name}@{alias}")
 
 
 def load_model_local(path: Union[str, Path]) -> Any:
