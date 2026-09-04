@@ -1,0 +1,43 @@
+# Core
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+# xgboost>=2.0.0  # optional – replaced by HistGradientBoostingClassifier
+
+# MLflow
+mlflow>=2.10.0
+
+# Validation & quality
+great-expectations>=0.18.0
+pydantic>=2.5.0
+
+# API
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# Config & utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0
+joblib>=1.3.0
+
+# Monitoring
+evidently>=0.4.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+httpx>=0.26.0
+
+# Azure / Databricks (optional local)
+# azure-ai-ml
+# azure-identity
+# databricks-sdk
+# databricks-connect
+
+# Plotting (for evaluation artifacts)
+matplotlib>=3.8.0
+seaborn>=0.13.0
+# Settings
+pydantic-settings>=2.1.0
+scipy>=1.11.0

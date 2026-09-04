@@ -1,0 +1,31 @@
+# Databricks Asset Bundle configuration (placeholder)
+bundle:
+  name: netcare-ml-platform
+
+variables:
+  experiment_name:
+    default: netcare-readmission
+  registered_model_name:
+    default: netcare-readmission-model
+
+targets:
+  dev:
+    default: true
+    workspace:
+      host: ${DATABRICKS_HOST}
+
+  prod:
+    workspace:
+      host: ${DATABRICKS_HOST}
+
+artifacts: {}
+
+resources:
+  # Example job – expand later
+  jobs:
+    train_readmission_model:
+      name: train-readmission-model
+      tasks:
+        - task_key: train
+          notebook_task:
+            notebook_path: ../notebooks/02_databricks_training.ipynb
