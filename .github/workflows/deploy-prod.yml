@@ -1,8 +1,6 @@
-name: Deploy Prod
+name: Deploy Production
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -25,15 +23,19 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-      - name: Deploy to Databricks (prod)
-        run: |
-          echo "TODO: databricks bundle deploy -t prod"
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
 
-      - name: Deploy Azure ML endpoint (prod)
-        run: |
-          echo "TODO: az ml online-endpoint update / create --resource-group ... --name ..."
+      - name: Validate production bundle
+        working-directory: databricks
         env:
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          DATABRICKS_HOST_PROD: ${{ secrets.DATABRICKS_HOST_PROD }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle validate -t prod
+
+      - name: Deploy production bundle
+        working-directory: databricks
+        env:
+          DATABRICKS_HOST_PROD: ${{ secrets.DATABRICKS_HOST_PROD }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle deploy -t prod
