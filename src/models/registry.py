@@ -88,6 +88,7 @@ def register_model(
                 name="model",
                 python_model=serving_model,
                 pip_requirements=MLFLOW_SERVING_REQUIREMENTS,
+                infer_code_paths=True,
                 signature=signature,
                 input_example=serving_input.head(2)
                 if hasattr(serving_input, "head")
