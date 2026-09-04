@@ -266,6 +266,8 @@ The current environment model is:
               Training / Serving
 ```
 
+The Databricks training notebook is now aligned to the GCP-only architecture and the current leakage-safe training pipeline. It accepts environment-specific catalog, experiment and registered-model parameters from the Databricks Bundle.
+
 Actual workspace deployment remains environment-dependent. The repository contains the deployment definitions, but a real deployment requires the target GCP/Databricks workspace and authenticated deployment configuration.
 
 ## 11. Security
@@ -458,8 +460,9 @@ Actual workspace deployment and execution remain pending.
 - promotion tests
 - CI quality cleanup
 - production preprocessing consistency fix
+- GCP-only Databricks training notebook alignment
 
-Remaining Phase 6 work: integrate the full candidate registration/promotion flow and validate it end-to-end.
+Remaining Phase 6 work: integrate the full candidate registration/promotion flow with the Databricks workspace and validate it end-to-end against the Unity Catalog environment.
 
 ### Phase 7 — CI/CD with GitHub Actions + Databricks
 
@@ -544,3 +547,17 @@ Continue to next phase
 ```
 
 Do not introduce Azure resources, Azure deployment instructions or Azure-specific Databricks architecture into this repository. The target cloud architecture is **GCP + Databricks on GCP**.
+
+## 18. Environment information required for cloud validation
+
+When the repository implementation is ready for actual Databricks/GCP deployment validation, the user will provide non-secret environment configuration such as:
+
+- GCP project ID;
+- GCP region;
+- GCS bucket name;
+- Databricks workspace URL;
+- Databricks authentication method;
+- Unity Catalog availability and target catalog;
+- any required non-secret deployment identifiers.
+
+**Secrets, access tokens and passwords must not be committed to GitHub or pasted into source files.** They should be supplied through the appropriate local/CI secret mechanism when deployment is performed.
