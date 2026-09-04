@@ -8,13 +8,13 @@ include:
 variables:
   catalog_name:
     description: Unity Catalog catalog used by this environment
-    default: netcare
+    default: netcareaidatabricks
   experiment_name:
     description: Absolute Databricks workspace path for the MLflow experiment
     default: /Shared/netcare-readmission
   registered_model_name:
     description: Unity Catalog registered model name
-    default: netcare.ml.readmission_model
+    default: netcareaidatabricks.ml.readmission_model
 
 artifacts:
   default:
@@ -35,18 +35,18 @@ targets:
     workspace:
       host: https://8259552034754034.4.gcp.databricks.com
     variables:
-      catalog_name: netcare
+      catalog_name: netcareaidatabricks
 
   staging:
     mode: production
     workspace:
       host: ${DATABRICKS_HOST_STAGING}
     variables:
-      catalog_name: netcare
+      catalog_name: netcareaidatabricks
 
   prod:
     mode: production
     workspace:
       host: ${DATABRICKS_HOST_PROD}
     variables:
-      catalog_name: netcare
+      catalog_name: netcareaidatabricks
