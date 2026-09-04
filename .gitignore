@@ -17,7 +17,7 @@ env/
 mlruns/
 mlartifacts/
 artifacts/
-models/
+/models/
 *.pkl
 *.joblib
 
