@@ -100,7 +100,7 @@ def evaluate_model(
             confusion_matrix=cm,
             display_labels=["Not readmitted", "Readmitted ≤30d"],
         )
-        fig, ax = plt.subplots(figsize=(7, 6))
+        _fig, ax = plt.subplots(figsize=(7, 6))
         disp.plot(cmap=plt.cm.Blues, ax=ax, values_format="d")
         ax.set_title(f"Confusion Matrix – {model_name}")
         plt.tight_layout()
@@ -179,14 +179,19 @@ def evaluate_both_models(
         # Confusion matrices
         for preds, name, fname, cmap in [
             (xgb_predictions, "XGBoost", "confusion_matrix.png", plt.cm.Blues),
-            (lr_predictions, "Logistic Regression (Baseline)", "confusion_matrix_baseline.png", plt.cm.Oranges),
+            (
+                lr_predictions,
+                "Logistic Regression (Baseline)",
+                "confusion_matrix_baseline.png",
+                plt.cm.Oranges,
+            ),
         ]:
             cm = confusion_matrix(preds["actual"], preds["predicted"])
             disp = ConfusionMatrixDisplay(
                 confusion_matrix=cm,
                 display_labels=["Not readmitted", "Readmitted ≤30d"],
             )
-            fig, ax = plt.subplots(figsize=(7, 6))
+            _fig, ax = plt.subplots(figsize=(7, 6))
             disp.plot(cmap=cmap, ax=ax, values_format="d")
             ax.set_title(f"Confusion Matrix – {name}")
             plt.tight_layout()
