@@ -1,7 +1,6 @@
 """Central configuration loaded from environment variables."""
 
 from pathlib import Path
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,7 +34,7 @@ class Settings(BaseSettings):
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    api_key: Optional[str] = None
+    api_key: str | None = None
 
     # Monitoring thresholds
     drift_threshold: float = 0.15

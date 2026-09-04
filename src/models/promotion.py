@@ -1,6 +1,6 @@
 """Governed model promotion workflow for Unity Catalog."""
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from src.models.quality_gate import QualityGateConfig, QualityGateResult, validate_candidate
 from src.models.registry import set_model_alias
@@ -9,12 +9,12 @@ from src.models.registry import set_model_alias
 def promote_candidate(
     model_name: str,
     version: str,
-    candidate_metrics: Dict[str, Any],
+    candidate_metrics: dict[str, Any],
     *,
-    production_metrics: Optional[Dict[str, Any]] = None,
+    production_metrics: dict[str, Any] | None = None,
     data_validation_passed: bool = True,
     model_tests_passed: bool = True,
-    config: Optional[QualityGateConfig] = None,
+    config: QualityGateConfig | None = None,
     alias: str = "champion",
 ) -> QualityGateResult:
     """Validate and promote a registered model version to a UC alias.

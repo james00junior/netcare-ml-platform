@@ -10,6 +10,4 @@ so any remaining references keep working.
 
 from src.models.train_gbdt import (  # noqa: F401
     predict_gbdt as predict_xgboost,
-    run_gbdt_training as run_xgboost_training,
-    train_gbdt_model as train_xgboost_model,
 )

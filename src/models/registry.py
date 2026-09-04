@@ -7,7 +7,7 @@ with aliases for governed candidate/champion lifecycle management.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import joblib
 import mlflow
@@ -24,10 +24,10 @@ def register_model(
     model_name: str,
     X_sample: Any,
     y_sample: Any = None,
-    metrics: Optional[Dict[str, float]] = None,
-    params: Optional[Dict[str, Any]] = None,
-    artifacts: Optional[Dict[str, str]] = None,
-    registered_model_name: Optional[str] = None,
+    metrics: dict[str, float] | None = None,
+    params: dict[str, Any] | None = None,
+    artifacts: dict[str, str] | None = None,
+    registered_model_name: str | None = None,
 ) -> str:
     """Log a model to MLflow and optionally register it in Unity Catalog."""
     del model_name, y_sample
@@ -91,7 +91,7 @@ def get_model_version(model_name: str, alias: str = "champion") -> str:
 
 def set_model_alias(
     model_name: str,
-    version: Union[str, int],
+    version: str | int,
     alias: str = "champion",
 ) -> None:
     """Assign a governed Unity Catalog alias to a registered model version."""
@@ -101,7 +101,7 @@ def set_model_alias(
 
 
 def load_model_alias(
-    model_name: Optional[str] = None,
+    model_name: str | None = None,
     alias: str = "champion",
 ) -> Any:
     """Load the model version assigned to a Unity Catalog alias."""
@@ -109,12 +109,12 @@ def load_model_alias(
     return load_model(f"models:/{name}@{alias}")
 
 
-def load_model_local(path: Union[str, Path]) -> Any:
+def load_model_local(path: str | Path) -> Any:
     """Load a model saved with joblib (local fallback)."""
     return joblib.load(path)
 
 
-def save_model_local(model: Any, path: Union[str, Path]) -> Path:
+def save_model_local(model: Any, path: str | Path) -> Path:
     """Save a model with joblib."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

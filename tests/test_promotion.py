@@ -16,9 +16,7 @@ def test_promote_candidate_assigns_champion_when_gate_passes(mock_set_alias):
 
     assert result.passed
     assert result.checks["better_than_production"]
-    mock_set_alias.assert_called_once_with(
-        "nectare.ml.readmission_model", "4", alias="champion"
-    )
+    mock_set_alias.assert_called_once_with("nectare.ml.readmission_model", "4", alias="champion")
 
 
 @patch("src.models.promotion.set_model_alias")

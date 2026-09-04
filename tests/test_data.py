@@ -3,14 +3,13 @@
 import pandas as pd
 import pytest
 
-from src.data.validation import run_data_quality_checks
 from src.data.preprocessing import (
     clean_identifiers_and_leakage,
-    standardise_categoricals,
     impute_lab_values,
     preprocess_data,
+    standardise_categoricals,
 )
-from src.config.model_config import ModelConfig
+from src.data.validation import run_data_quality_checks
 
 
 @pytest.fixture
@@ -51,7 +50,10 @@ def test_standardise_categoricals(sample_df):
     std = standardise_categoricals(sample_df)
     assert set(std["sex"].unique()) <= {"Female", "Male"}
     assert "Emergency" in std["admission_type"].values
-    assert "ER" in std["admission_source"].str.upper().values or "Er" not in std["admission_type"].values
+    assert (
+        "ER" in std["admission_source"].str.upper().values
+        or "Er" not in std["admission_type"].values
+    )
 
 
 def test_impute_lab_values(sample_df):

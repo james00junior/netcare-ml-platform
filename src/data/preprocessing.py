@@ -16,8 +16,6 @@ The preprocessing workflow is:
     transform train and test with the same fitted transformer
 """
 
-from typing import Optional, Tuple
-
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -31,7 +29,7 @@ from src.config.model_config import ModelConfig
 
 def clean_identifiers_and_leakage(
     df: pd.DataFrame,
-    drop_columns: Optional[Tuple[str, ...]] = None,
+    drop_columns: tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
     """Drop identifier and known leakage columns."""
     cfg = ModelConfig()
@@ -59,12 +57,7 @@ def standardise_categoricals(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     if "admission_source" in df.columns:
-        df["admission_source"] = (
-            df["admission_source"]
-            .astype("string")
-            .str.strip()
-            .str.upper()
-        )
+        df["admission_source"] = df["admission_source"].astype("string").str.strip().str.upper()
 
     for col in [
         "sex",
@@ -73,19 +66,14 @@ def standardise_categoricals(df: pd.DataFrame) -> pd.DataFrame:
         "payer_type",
     ]:
         if col in df.columns:
-            df[col] = (
-                df[col]
-                .astype("string")
-                .str.strip()
-                .str.title()
-            )
+            df[col] = df[col].astype("string").str.strip().str.title()
 
     return df
 
 
 def impute_lab_values(
     df: pd.DataFrame,
-    lab_columns: Optional[Tuple[str, ...]] = None,
+    lab_columns: tuple[str, ...] | None = None,
 ) -> pd.DataFrame:
     """
     Legacy helper for direct dataframe preprocessing.
@@ -108,8 +96,8 @@ def impute_lab_values(
 def encode_features(
     df: pd.DataFrame,
     target_column: str = "readmitted_30d",
-    categorical_columns: Optional[Tuple[str, ...]] = None,
-) -> Tuple[pd.DataFrame, pd.Series]:
+    categorical_columns: tuple[str, ...] | None = None,
+) -> tuple[pd.DataFrame, pd.Series]:
     """
     Legacy helper for direct dataframe encoding.
 
@@ -135,7 +123,7 @@ def encode_features(
 
 def build_preprocessor(
     X: pd.DataFrame,
-    config: Optional[ModelConfig] = None,
+    config: ModelConfig | None = None,
 ) -> ColumnTransformer:
     """
     Build a leakage-safe sklearn preprocessing transformer.
@@ -146,13 +134,9 @@ def build_preprocessor(
     """
     config = config or ModelConfig()
 
-    categorical_columns = [
-        col for col in config.categorical_columns if col in X.columns
-    ]
+    categorical_columns = [col for col in config.categorical_columns if col in X.columns]
 
-    numeric_columns = [
-        col for col in X.columns if col not in categorical_columns
-    ]
+    numeric_columns = [col for col in X.columns if col not in categorical_columns]
 
     numeric_pipeline = Pipeline(
         steps=[
@@ -189,7 +173,7 @@ def build_preprocessor(
 
 def prepare_train_test_data(
     df: pd.DataFrame,
-    config: Optional[ModelConfig] = None,
+    config: ModelConfig | None = None,
 ):
     """
     Prepare raw data using a leakage-safe train/test workflow.
@@ -221,9 +205,7 @@ def prepare_train_test_data(
     df = standardise_categoricals(df)
 
     if config.target_column not in df.columns:
-        raise ValueError(
-            f"Target column '{config.target_column}' not found in dataset."
-        )
+        raise ValueError(f"Target column '{config.target_column}' not found in dataset.")
 
     y = df[config.target_column].astype(int)
     X = df.drop(columns=[config.target_column])
@@ -269,8 +251,8 @@ def prepare_train_test_data(
 
 def preprocess_data(
     df: pd.DataFrame,
-    config: Optional[ModelConfig] = None,
-) -> Tuple[pd.DataFrame, pd.Series]:
+    config: ModelConfig | None = None,
+) -> tuple[pd.DataFrame, pd.Series]:
     """
     Backwards-compatible full preprocessing helper.
 
@@ -298,21 +280,13 @@ def preprocess_data(
 def train_test_split_data(
     X: pd.DataFrame,
     y: pd.Series,
-    test_size: Optional[float] = None,
-    random_state: Optional[int] = None,
+    test_size: float | None = None,
+    random_state: int | None = None,
 ):
     """Stratified train/test split for already-prepared data."""
-    test_size = (
-        test_size
-        if test_size is not None
-        else settings.test_size
-    )
+    test_size = test_size if test_size is not None else settings.test_size
 
-    random_state = (
-        random_state
-        if random_state is not None
-        else settings.random_state
-    )
+    random_state = random_state if random_state is not None else settings.random_state
 
     return train_test_split(
         X,

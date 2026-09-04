@@ -1,7 +1,7 @@
 """Model hyperparameter configurations."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass
@@ -13,7 +13,7 @@ class BaselineConfig:
     random_state: int = 42
     solver: str = "lbfgs"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "max_iter": self.max_iter,
             "class_weight": self.class_weight,
@@ -38,7 +38,7 @@ class HistGBConfig:
     random_state: int = 42
     class_weight: str = "balanced"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "max_iter": self.max_iter,
             "max_depth": self.max_depth,

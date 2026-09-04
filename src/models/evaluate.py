@@ -5,7 +5,7 @@ Extracted and refactored from deliverable_4_evaluation_pack.py.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -24,11 +24,11 @@ from sklearn.metrics import (
 
 
 def compute_metrics(
-    y_true: Union[pd.Series, List],
-    y_pred: Union[pd.Series, List],
-    y_prob: Union[pd.Series, List],
+    y_true: pd.Series | list,
+    y_pred: pd.Series | list,
+    y_prob: pd.Series | list,
     model_name: str = "model",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Compute a comprehensive set of classification metrics."""
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
@@ -45,7 +45,7 @@ def compute_metrics(
         "false_negatives": int(fn),
         "true_positives": int(tp),
         "specificity": float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0,
-        "n_test_samples": int(len(y_true)),
+        "n_test_samples": len(y_true),
         "positive_rate_actual": float(pd.Series(y_true).mean()),
     }
 
@@ -55,9 +55,9 @@ def evaluate_model(
     y_pred: pd.Series,
     y_prob: pd.Series,
     model_name: str = "model",
-    output_dir: Optional[Union[str, Path]] = None,
+    output_dir: str | Path | None = None,
     prefix: str = "",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Evaluate a single model and optionally save plots + metrics.
     """
@@ -113,7 +113,7 @@ def evaluate_model(
 def evaluate_both_models(
     lr_predictions: pd.DataFrame,
     xgb_predictions: pd.DataFrame,
-    output_dir: Optional[Union[str, Path]] = None,
+    output_dir: str | Path | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate Logistic Regression and XGBoost side-by-side
@@ -248,5 +248,9 @@ if __name__ == "__main__":
     xgb = pd.read_csv("artifacts/xgboost_model_predictions.csv")
 
     metrics = evaluate_both_models(lr, xgb, output_dir="artifacts")
-    print(metrics[["model", "accuracy", "precision", "recall", "f1_score", "roc_auc"]].to_string(index=False))
+    print(
+        metrics[["model", "accuracy", "precision", "recall", "f1_score", "roc_auc"]].to_string(
+            index=False
+        )
+    )
     print("\nAll evaluation artefacts generated.")

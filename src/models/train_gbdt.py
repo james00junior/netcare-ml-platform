@@ -4,7 +4,7 @@ Train HistGradientBoostingClassifier model.
 Replacement for XGBoost – pure scikit-learn, no OpenMP required.
 """
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import joblib
 import pandas as pd
@@ -17,7 +17,7 @@ from src.config.model_config import HistGBConfig
 def train_gbdt_model(
     X_train: pd.DataFrame,
     y_train: pd.Series,
-    config: Optional[HistGBConfig] = None,
+    config: HistGBConfig | None = None,
 ) -> HistGradientBoostingClassifier:
     """Train HistGradientBoostingClassifier with project defaults."""
     config = config or HistGBConfig()
@@ -43,7 +43,7 @@ def train_gbdt_model(
 def predict_gbdt(
     model: HistGradientBoostingClassifier,
     X: pd.DataFrame,
-) -> Tuple[pd.Series, pd.Series]:
+) -> tuple[pd.Series, pd.Series]:
     """Return predicted labels and probabilities."""
     preds = pd.Series(model.predict(X), index=X.index, name="predicted")
     probs = pd.Series(model.predict_proba(X)[:, 1], index=X.index, name="probability")
@@ -55,10 +55,10 @@ def run_gbdt_training(
     X_test: pd.DataFrame,
     y_train: pd.Series,
     y_test: pd.Series,
-    config: Optional[HistGBConfig] = None,
-    save_path: Optional[str] = None,
+    config: HistGBConfig | None = None,
+    save_path: str | None = None,
     preprocessor: Any = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Full GBDT training + evaluation convenience function.
 
@@ -122,8 +122,8 @@ if __name__ == "__main__":
     from pathlib import Path
 
     from src.data.ingestion import load_raw_data
-    from src.features.build_features import build_feature_matrix
     from src.data.preprocessing import train_test_split_data
+    from src.features.build_features import build_feature_matrix
 
     df = load_raw_data()
     X, y = build_feature_matrix(df)

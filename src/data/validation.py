@@ -5,7 +5,7 @@ Extracted and refactored from deliverable_1_data_quality.py.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -17,16 +17,16 @@ class DataQualityReport:
 
     n_rows: int
     n_columns: int
-    columns: List[str]
-    missing_values: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    columns: list[str]
+    missing_values: dict[str, dict[str, float]] = field(default_factory=dict)
     duplicate_rows: int = 0
     duplicate_patient_ids: int = 0
     duplicate_encounter_ids: int = 0
-    outliers: List[Dict[str, Any]] = field(default_factory=list)
-    categorical_summary: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    warnings: List[str] = field(default_factory=list)
+    outliers: list[dict[str, Any]] = field(default_factory=list)
+    categorical_summary: dict[str, dict[str, Any]] = field(default_factory=dict)
+    warnings: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "n_rows": self.n_rows,
             "n_columns": self.n_columns,
@@ -102,7 +102,7 @@ class DataQualityReport:
         print("=" * 60)
 
 
-def _check_missing(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
+def _check_missing(df: pd.DataFrame) -> dict[str, dict[str, float]]:
     missing = df.isnull().sum()
     missing_pct = (missing / len(df) * 100).round(2)
     result = {}
@@ -114,7 +114,7 @@ def _check_missing(df: pd.DataFrame) -> Dict[str, Dict[str, float]]:
     return result
 
 
-def _check_duplicates(df: pd.DataFrame) -> Dict[str, int]:
+def _check_duplicates(df: pd.DataFrame) -> dict[str, int]:
     result = {
         "duplicate_rows": int(df.duplicated().sum()),
         "duplicate_patient_ids": 0,
@@ -129,8 +129,8 @@ def _check_duplicates(df: pd.DataFrame) -> Dict[str, int]:
 
 def _check_outliers(
     df: pd.DataFrame,
-    exclude: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
+    exclude: list[str] | None = None,
+) -> list[dict[str, Any]]:
     exclude = exclude or [
         "readmitted_30d",
         "days_to_readmission",
@@ -170,16 +170,18 @@ def _check_outliers(
     return sorted(outlier_summary, key=lambda x: x["n_outliers"], reverse=True)
 
 
-def _check_categoricals(df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+def _check_categoricals(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
     cat_cols = df.select_dtypes(include=["object"]).columns.tolist()
     summary = {}
     for col in cat_cols:
         vals = df[col].dropna().unique()
-        sorted_vals = sorted(vals.tolist()) if len(vals) < 20 else sorted(vals.tolist())[:15] + ["..."]
+        sorted_vals = (
+            sorted(vals.tolist()) if len(vals) < 20 else sorted(vals.tolist())[:15] + ["..."]
+        )
         stripped = df[col].dropna().astype(str).str.strip().str.lower()
         case_inconsistency = stripped.nunique() < df[col].dropna().nunique()
         summary[col] = {
-            "n_unique": int(len(vals)),
+            "n_unique": len(vals),
             "values": sorted_vals,
             "case_inconsistency": case_inconsistency,
             "n_missing": int(df[col].isna().sum()),

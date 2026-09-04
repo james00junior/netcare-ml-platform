@@ -5,7 +5,7 @@ Lightweight implementation; can later be swapped for Evidently or
 Databricks Lakehouse Monitoring.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -15,17 +15,22 @@ from scipy import stats
 def detect_data_drift(
     reference: pd.DataFrame,
     current: pd.DataFrame,
-    numerical_columns: Optional[List[str]] = None,
-    categorical_columns: Optional[List[str]] = None,
+    numerical_columns: list[str] | None = None,
+    categorical_columns: list[str] | None = None,
     threshold: float = 0.15,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Simple drift detection using KS-test (numeric) and chi-squared (categorical).
 
     Returns a report with per-column drift flags and an overall drifted flag.
     """
-    numerical_columns = numerical_columns or reference.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = categorical_columns or reference.select_dtypes(include=["object", "category"]).columns.tolist()
+    numerical_columns = (
+        numerical_columns or reference.select_dtypes(include=[np.number]).columns.tolist()
+    )
+    categorical_columns = (
+        categorical_columns
+        or reference.select_dtypes(include=["object", "category"]).columns.tolist()
+    )
 
     column_reports = []
     drifted_columns = []

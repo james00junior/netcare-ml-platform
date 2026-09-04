@@ -4,9 +4,9 @@ import pandas as pd
 import pytest
 from sklearn.datasets import make_classification
 
-from src.models.train_baseline import train_baseline_model, predict_baseline
-from src.models.train_gbdt import train_gbdt_model, predict_gbdt
 from src.models.evaluate import compute_metrics
+from src.models.train_baseline import predict_baseline, train_baseline_model
+from src.models.train_gbdt import predict_gbdt, train_gbdt_model
 
 
 @pytest.fixture

@@ -7,8 +7,6 @@ This module provides a clean entry point for future feature enrichment
 and Feature Store integration.
 """
 
-from typing import Optional, Tuple
-
 import pandas as pd
 
 from src.config.model_config import ModelConfig
@@ -17,8 +15,8 @@ from src.data.preprocessing import preprocess_data
 
 def build_feature_matrix(
     df: pd.DataFrame,
-    config: Optional[ModelConfig] = None,
-) -> Tuple[pd.DataFrame, pd.Series]:
+    config: ModelConfig | None = None,
+) -> tuple[pd.DataFrame, pd.Series]:
     """
     Build the feature matrix and target from raw data.
 

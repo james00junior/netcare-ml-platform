@@ -1,14 +1,13 @@
 """Data ingestion utilities."""
 
 from pathlib import Path
-from typing import Optional, Union
 
 import pandas as pd
 
 from src.config import settings
 
 
-def load_raw_data(path: Optional[Union[str, Path]] = None) -> pd.DataFrame:
+def load_raw_data(path: str | Path | None = None) -> pd.DataFrame:
     """
     Load the raw hospital readmissions dataset.
 
@@ -37,7 +36,7 @@ def load_raw_data(path: Optional[Union[str, Path]] = None) -> pd.DataFrame:
 def save_processed_data(
     df: pd.DataFrame,
     name: str,
-    path: Optional[Union[str, Path]] = None,
+    path: str | Path | None = None,
 ) -> Path:
     """Save a processed dataframe to the processed data directory."""
     out_dir = Path(path) if path else Path(settings.processed_data_path)

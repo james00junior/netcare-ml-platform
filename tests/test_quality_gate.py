@@ -33,12 +33,8 @@ def test_quality_gate_rejects_low_recall():
 
 
 def test_candidate_must_not_regress_against_production():
-    assert compare_with_production(
-        {"roc_auc": 0.72}, {"roc_auc": 0.71}
-    )
-    assert not compare_with_production(
-        {"roc_auc": 0.70}, {"roc_auc": 0.71}
-    )
+    assert compare_with_production({"roc_auc": 0.72}, {"roc_auc": 0.71})
+    assert not compare_with_production({"roc_auc": 0.70}, {"roc_auc": 0.71})
 
 
 def test_validation_requires_data_and_model_tests():

@@ -1,7 +1,7 @@
 """Model quality gates used before model registration or promotion."""
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -20,16 +20,16 @@ class QualityGateResult:
     """Auditable result of candidate-model validation."""
 
     passed: bool
-    checks: Dict[str, bool]
+    checks: dict[str, bool]
     reasons: tuple[str, ...]
 
 
 def evaluate_quality_gate(
-    metrics: Dict[str, Any],
+    metrics: dict[str, Any],
     *,
     data_validation_passed: bool = True,
     model_tests_passed: bool = True,
-    config: Optional[QualityGateConfig] = None,
+    config: QualityGateConfig | None = None,
 ) -> QualityGateResult:
     """Validate a candidate model against explicit production criteria."""
     config = config or QualityGateConfig()
@@ -54,8 +54,8 @@ def evaluate_quality_gate(
 
 
 def compare_with_production(
-    candidate_metrics: Dict[str, Any],
-    production_metrics: Optional[Dict[str, Any]],
+    candidate_metrics: dict[str, Any],
+    production_metrics: dict[str, Any] | None,
     *,
     primary_metric: str = "roc_auc",
 ) -> bool:
@@ -69,12 +69,12 @@ def compare_with_production(
 
 
 def validate_candidate(
-    candidate_metrics: Dict[str, Any],
+    candidate_metrics: dict[str, Any],
     *,
-    production_metrics: Optional[Dict[str, Any]] = None,
+    production_metrics: dict[str, Any] | None = None,
     data_validation_passed: bool = True,
     model_tests_passed: bool = True,
-    config: Optional[QualityGateConfig] = None,
+    config: QualityGateConfig | None = None,
 ) -> QualityGateResult:
     """Run quality gates and reject candidates that regress against production."""
     config = config or QualityGateConfig()

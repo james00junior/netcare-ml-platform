@@ -1,9 +1,9 @@
-from .schemas import PredictionRequest, PredictionResponse, HealthResponse
 from .predictor import ReadmissionPredictor
+from .schemas import HealthResponse, PredictionRequest, PredictionResponse
 
 __all__ = [
+    "HealthResponse",
     "PredictionRequest",
     "PredictionResponse",
-    "HealthResponse",
     "ReadmissionPredictor",
 ]

@@ -3,14 +3,14 @@ Inference wrapper used by the API and batch scoring jobs with MLflow tracking.
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import joblib
 import mlflow
-from mlflow.exceptions import MlflowException
-from mlflow.tracking import MlflowClient
 import numpy as np
 import pandas as pd
+from mlflow.exceptions import MlflowException
+from mlflow.tracking import MlflowClient
 
 from src.data.preprocessing import clean_identifiers_and_leakage, standardise_categoricals
 
@@ -26,11 +26,11 @@ class ReadmissionPredictor:
 
     def __init__(
         self,
-        model_path: Optional[Union[str, Path]] = None,
+        model_path: str | Path | None = None,
         model: Any = None,
-        preprocessor_path: Optional[Union[str, Path]] = None,
+        preprocessor_path: str | Path | None = None,
         preprocessor: Any = None,
-        feature_columns: Optional[List[str]] = None,
+        feature_columns: list[str] | None = None,
         model_version: str = "local",
         experiment_name: str = "/Shared/netcare-readmission-production-inference",
     ):
@@ -46,9 +46,7 @@ class ReadmissionPredictor:
         elif preprocessor_path is not None:
             self.preprocessor = joblib.load(preprocessor_path)
         else:
-            raise ValueError(
-                "A fitted preprocessor or preprocessor_path must be provided."
-            )
+            raise ValueError("A fitted preprocessor or preprocessor_path must be provided.")
 
         if feature_columns is not None:
             self.feature_columns = feature_columns
@@ -73,7 +71,7 @@ class ReadmissionPredictor:
         except (MlflowException, ValueError, TypeError):
             self.experiment_id = None
 
-    def _prepare_features(self, records: List[Dict[str, Any]]) -> pd.DataFrame:
+    def _prepare_features(self, records: list[dict[str, Any]]) -> pd.DataFrame:
         """Apply the fitted training preprocessor to raw feature dictionaries."""
         if not records:
             raise ValueError("At least one record is required for prediction.")
@@ -112,7 +110,7 @@ class ReadmissionPredictor:
         except (MlflowException, ValueError, TypeError) as mlflow_err:
             print(f"MLflow Logging Failed: {mlflow_err}")
 
-    def predict(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def predict(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Run inference on a list of patient feature dictionaries."""
         X = self._prepare_features(records)
         probs = self.model.predict_proba(X)[:, 1]
@@ -131,7 +129,7 @@ class ReadmissionPredictor:
         self._log_prediction(probs, labels)
         return results
 
-    def predict_single(self, features: Dict[str, Any]) -> Dict[str, Any]:
+    def predict_single(self, features: dict[str, Any]) -> dict[str, Any]:
         return self.predict([features])[0]
 
     @staticmethod

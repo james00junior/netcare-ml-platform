@@ -2,7 +2,7 @@
 Model performance monitoring.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 from sklearn.metrics import (
@@ -17,8 +17,8 @@ from sklearn.metrics import (
 def compute_performance_metrics(
     y_true: pd.Series,
     y_pred: pd.Series,
-    y_prob: Optional[pd.Series] = None,
-) -> Dict[str, float]:
+    y_prob: pd.Series | None = None,
+) -> dict[str, float]:
     """Compute live performance metrics from scored data that has labels."""
     metrics = {
         "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -32,11 +32,11 @@ def compute_performance_metrics(
 
 
 def check_performance_degradation(
-    current_metrics: Dict[str, float],
-    baseline_metrics: Dict[str, float],
+    current_metrics: dict[str, float],
+    baseline_metrics: dict[str, float],
     threshold: float = 0.05,
     primary_metric: str = "roc_auc",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Compare current performance against a baseline (e.g. validation metrics).
 

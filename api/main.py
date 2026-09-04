@@ -4,7 +4,6 @@ FastAPI application for the Netcare readmission prediction service.
 
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
@@ -22,7 +21,7 @@ from src.serving.schemas import (
 # ---------------------------------------------------------------------------
 # App lifespan – load model once at startup
 # ---------------------------------------------------------------------------
-predictor: Optional[ReadmissionPredictor] = None
+predictor: ReadmissionPredictor | None = None
 
 
 @asynccontextmanager
@@ -54,7 +53,7 @@ app = FastAPI(
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-def verify_api_key(api_key: Optional[str] = Security(api_key_header)) -> None:
+def verify_api_key(api_key: str | None = Security(api_key_header)) -> None:
     if settings.api_key and api_key != settings.api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -95,9 +94,7 @@ def predict_batch(request: BatchPredictionRequest) -> BatchPredictionResponse:
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     results = predictor.predict(request.records)
-    return BatchPredictionResponse(
-        predictions=[PredictionResponse(**r) for r in results]
-    )
+    return BatchPredictionResponse(predictions=[PredictionResponse(**r) for r in results])
 
 
 @app.get("/", tags=["ops"])
