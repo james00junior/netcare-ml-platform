@@ -17,6 +17,8 @@ resources:
             driver_node_type_id: "n2-standard-4"
             num_workers: 0
             data_security_mode: USER_ISOLATION
+            gcp_attributes:
+              zone_id: AUTO
             spark_conf:
               spark.databricks.cluster.profile: singleNode
               spark.master: local[*]
