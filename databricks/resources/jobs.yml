@@ -9,12 +9,19 @@ resources:
           default: ${var.experiment_name}
         - name: raw_data_path
           default: gs://databricks-8259552034754034/hospital_readmissions.csv
-      environments:
-        - environment_key: default
-          spec:
-            environment_version: "5"
-            dependencies:
-              - ../../dist/*.whl
+      job_clusters:
+        - job_cluster_key: training_cluster
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: "n2-standard-4"
+            driver_node_type_id: "n2-standard-4"
+            num_workers: 0
+            autotermination_minutes: 10
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: local[*]
+            custom_tags:
+              ResourceClass: SingleNode
       tasks:
         - task_key: train
           notebook_task:
@@ -24,4 +31,4 @@ resources:
               experiment_name: ${var.experiment_name}
               registered_model_name: ${var.registered_model_name}
               raw_data_path: gs://databricks-8259552034754034/hospital_readmissions.csv
-          environment_key: default
+          job_cluster_key: training_cluster
