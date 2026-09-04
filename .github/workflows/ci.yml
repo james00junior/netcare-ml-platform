@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 jobs:
-  test:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,9 +23,10 @@ jobs:
           pip install -e ".[dev,api]"
 
       - name: Lint
-        run: |
-          ruff check src tests api || true
-          black --check src tests api || true
+        run: ruff check src tests api
+
+      - name: Format check
+        run: black --check src tests api
 
       - name: Run tests
         run: pytest tests/ -v --cov=src --cov-report=xml
