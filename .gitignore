@@ -8,6 +8,12 @@ __pycache__/
 venv/
 env/
 
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.whl
+
 # Environment variables and secrets
 .env
 .env.*
@@ -45,7 +51,6 @@ logs/
 .pytest_cache/
 .coverage
 htmlcov/
+
 # MLflow local tracking
 mlflow.db
-mlruns/
-mlartifacts/
