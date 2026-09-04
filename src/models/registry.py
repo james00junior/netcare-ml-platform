@@ -83,11 +83,17 @@ def register_model(
             serving_predictions = serving_model.predict(None, serving_input)
             signature = infer_signature(serving_input, serving_predictions)
 
+            # The model is defined in src.serving.mlflow_model. Use the source
+            # package directory explicitly rather than infer_code_paths, because
+            # Databricks executes the training notebook outside the repository's
+            # local working directory. MLflow preserves the package root under
+            # code/src, allowing cloudpickle to resolve the original import path.
+            source_root = Path(__file__).resolve().parents[1]
             model_info = mlflow.pyfunc.log_model(
                 name="model",
                 python_model=serving_model,
+                code_paths=[str(source_root)],
                 pip_requirements=MLFLOW_SERVING_REQUIREMENTS,
-                infer_code_paths=True,
                 signature=signature,
                 input_example=serving_input.head(2) if hasattr(serving_input, "head") else None,
                 registered_model_name=registered_model_name,
