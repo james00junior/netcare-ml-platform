@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Model
     model_name: str = "readmission_xgboost"
     experiment_name: str = "/Shared/netcare-readmission"
-    registered_model_name: str = "nectare.ml.readmission_model"
+    registered_model_name: str = "netcareaidatabricks.ml.readmission_model"
 
     # MLflow / Unity Catalog
     mlflow_tracking_uri: str = "databricks"
