@@ -16,8 +16,8 @@ import mlflow.xgboost
 from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 
-from src.config import settings
 from model_serving.mlflow_model import ReadmissionServingModel
+from src.config import settings
 
 
 MLFLOW_SERVING_REQUIREMENTS = [
