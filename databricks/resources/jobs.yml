@@ -24,7 +24,7 @@ resources:
       tasks:
         - task_key: train
           notebook_task:
-            notebook_path: ../../notebooks/02_databricks_training.ipynb
+            notebook_path: ../../notebooks/02_databricks_training.py
             base_parameters:
               catalog_name: ${var.catalog_name}
               experiment_name: ${var.experiment_name}
