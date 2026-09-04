@@ -21,7 +21,7 @@ from src.config import settings
 from src.data.ingestion import load_raw_data
 from src.data.preprocessing import prepare_train_test_data
 from src.data.validation import run_data_quality_checks
-from src.models.quality_gate import validate_candidate
+from src.models.promotion import register_and_promote_candidate
 from src.models.train_baseline import run_baseline_training
 from src.models.train_gbdt import run_gbdt_training
 
@@ -100,19 +100,28 @@ with mlflow.start_run(run_name="readmission-candidate") as run:
     )
     candidate_run_id = run.info.run_id
 
-quality_result = validate_candidate(
-    candidate_metrics,
-    production_metrics=None,
+print("Candidate MLflow run:", candidate_run_id)
+
+# Phase 6 governance: apply the strict quality gate before registration,
+# then register the approved estimator in Unity Catalog and assign the champion alias.
+quality_result, registered_version = register_and_promote_candidate(
+    model=candidate_result["model"],
+    model_name="readmission_model",
+    X_sample=X_train,
+    y_sample=y_train,
+    candidate_metrics=candidate_metrics,
+    registered_model_name=registered_model_name,
     data_validation_passed=data_validation_passed,
     model_tests_passed=True,
+    alias="champion",
 )
 
-print("Candidate MLflow run:", candidate_run_id)
 print("Quality gate passed:", quality_result.passed)
 print("Checks:", quality_result.checks)
 print("Reasons:", quality_result.reasons)
+print("Registered model version:", registered_version)
 
 if not quality_result.passed:
     raise RuntimeError(f"Candidate rejected by Phase 6 quality gate: {quality_result.reasons}")
 
-print("Approved candidate ready for governed Unity Catalog registration.")
+print("Candidate registered and promoted to the Unity Catalog champion alias.")
