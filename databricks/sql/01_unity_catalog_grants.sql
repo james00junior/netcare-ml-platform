@@ -3,14 +3,17 @@
 -- The current workspace catalog is the managed catalog:
 --   netcareaidatabricks
 --
+-- The verified schema used by Phase 6 model registration is:
+--   netcareaidatabricks.default
+--
 -- Replace the group names below with actual Databricks account/workspace groups
 -- during deployment. Keep grants group-based; do not grant directly to users.
 
 -- Example role model:
 --   netcare-data-engineers : Bronze/Silver write, Gold read
---   netcare-ml-engineers   : Gold read, ML write
---   netcare-analysts       : Gold read, ML read
---   netcare-ml-serving     : ML read
+--   netcare-ml-engineers   : Gold read, registered model access
+--   netcare-analysts       : Gold read
+--   netcare-ml-serving     : registered model read
 
 -- Example grants:
 -- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-data-engineers`;
@@ -20,15 +23,13 @@
 -- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-ml-engineers`;
 -- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.gold TO `netcare-ml-engineers`;
 -- GRANT SELECT ON SCHEMA netcareaidatabricks.gold TO `netcare-ml-engineers`;
--- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-engineers`;
--- GRANT SELECT, MODIFY ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-engineers`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.default TO `netcare-ml-engineers`;
+-- GRANT SELECT, MODIFY ON SCHEMA netcareaidatabricks.default TO `netcare-ml-engineers`;
 --
 -- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-analysts`;
 -- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.gold TO `netcare-analysts`;
 -- GRANT SELECT ON SCHEMA netcareaidatabricks.gold TO `netcare-analysts`;
--- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.ml TO `netcare-analysts`;
--- GRANT SELECT ON SCHEMA netcareaidatabricks.ml TO `netcare-analysts`;
 --
 -- GRANT USE CATALOG ON CATALOG netcareaidatabricks TO `netcare-ml-serving`;
--- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-serving`;
--- GRANT SELECT ON SCHEMA netcareaidatabricks.ml TO `netcare-ml-serving`;
+-- GRANT USE SCHEMA ON SCHEMA netcareaidatabricks.default TO `netcare-ml-serving`;
+-- GRANT SELECT ON SCHEMA netcareaidatabricks.default TO `netcare-ml-serving`;
