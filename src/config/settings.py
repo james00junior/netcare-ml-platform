@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     mlflow_tracking_uri: str = "databricks"
     mlflow_registry_uri: str = "databricks-uc"
 
+    # Databricks Model Serving
+    databricks_serving_endpoint: str | None = None
+    databricks_serving_token: str | None = None
+    databricks_serving_timeout: float = 30.0
+
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
