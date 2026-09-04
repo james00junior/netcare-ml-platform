@@ -15,9 +15,17 @@ import mlflow.sklearn
 import mlflow.xgboost
 from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
-from sklearn.pipeline import Pipeline
 
 from src.config import settings
+from src.serving.mlflow_model import ReadmissionServingModel
+
+
+MLFLOW_SERVING_REQUIREMENTS = [
+    "mlflow==2.13.1",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+]
 
 
 def register_model(
@@ -35,9 +43,9 @@ def register_model(
     """Log a model and return its registered version.
 
     When a fitted preprocessor is supplied, the registered artifact is a
-    single sklearn Pipeline containing preprocessing and the estimator. This
-    keeps the production serving contract on raw feature records and prevents
-    training/serving preprocessing drift.
+    self-contained MLflow PyFunc model. It accepts raw feature records and
+    applies deterministic cleaning plus the fitted training transformer before
+    calling the estimator. This is the production serving path.
     """
     del model_name, y_sample
     registered_model_name = registered_model_name or settings.registered_model_name
@@ -52,39 +60,58 @@ def register_model(
         if metrics:
             mlflow.log_metrics(metrics)
 
-        serving_model = model
-        serving_input = signature_input if signature_input is not None else X_sample
-
         if preprocessor is not None:
-            serving_model = Pipeline(
-                steps=[
-                    ("preprocessor", preprocessor),
-                    ("model", model),
-                ]
+            serving_model = ReadmissionServingModel(
+                model=model,
+                preprocessor=preprocessor,
+                drop_columns=(
+                    "patient_id",
+                    "encounter_id",
+                    "admission_date",
+                    "discharge_date",
+                    "days_to_readmission",
+                ),
+                categorical_columns=(
+                    "sex",
+                    "admission_type",
+                    "admission_source",
+                    "discharge_disposition",
+                    "primary_diagnosis_group",
+                    "payer_type",
+                ),
             )
+            serving_input = signature_input if signature_input is not None else X_sample
+            serving_predictions = serving_model.predict(None, serving_input)
+            signature = infer_signature(serving_input, serving_predictions)
 
-        signature = None
-        try:
-            preds = serving_model.predict(serving_input)
-            signature = infer_signature(serving_input, preds)
-        except (ValueError, TypeError, MlflowException):
-            signature = None
-
-        model_type = type(model).__name__
-        model_log_kwargs = {
-            "name": "model",
-            "signature": signature,
-            "registered_model_name": registered_model_name,
-            "input_example": serving_input.head(2) if hasattr(serving_input, "head") else None,
-        }
-
-        # A Pipeline must use the sklearn flavor; estimator-only XGBoost
-        # registration remains supported for legacy callers without a fitted
-        # preprocessor.
-        if preprocessor is not None or "XGB" not in model_type:
-            model_info = mlflow.sklearn.log_model(serving_model, **model_log_kwargs)
+            model_info = mlflow.pyfunc.log_model(
+                name="model",
+                python_model=serving_model,
+                pip_requirements=MLFLOW_SERVING_REQUIREMENTS,
+                signature=signature,
+                input_example=serving_input.head(2)
+                if hasattr(serving_input, "head")
+                else None,
+                registered_model_name=registered_model_name,
+            )
         else:
-            model_info = mlflow.xgboost.log_model(model, **model_log_kwargs)
+            signature = None
+            try:
+                preds = model.predict(X_sample)
+                signature = infer_signature(X_sample, preds)
+            except (ValueError, TypeError, MlflowException):
+                signature = None
+
+            model_type = type(model).__name__
+            model_log_kwargs = {
+                "name": "model",
+                "signature": signature,
+                "registered_model_name": registered_model_name,
+            }
+            if "XGB" in model_type:
+                model_info = mlflow.xgboost.log_model(model, **model_log_kwargs)
+            else:
+                model_info = mlflow.sklearn.log_model(model, **model_log_kwargs)
 
         if artifacts:
             for name, path in artifacts.items():
