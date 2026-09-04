@@ -57,8 +57,14 @@ def run_gbdt_training(
     y_test: pd.Series,
     config: Optional[HistGBConfig] = None,
     save_path: Optional[str] = None,
+    preprocessor: Any = None,
 ) -> Dict[str, Any]:
-    """Full GBDT training + evaluation convenience function."""
+    """
+    Full GBDT training + evaluation convenience function.
+
+    The fitted preprocessing transformer is persisted alongside the model so
+    inference can use exactly the same transformations learned from training.
+    """
     config = config or HistGBConfig()
     model = train_gbdt_model(X_train, y_train, config)
 
@@ -89,16 +95,26 @@ def run_gbdt_training(
         print(f"Saved predictions: {save_path}")
 
     model_path = None
+    preprocessor_path = None
     if save_path:
         model_path = save_path.replace(".csv", ".joblib")
         joblib.dump(model, model_path)
         print(f"Saved model: {model_path}")
+
+        if preprocessor is not None:
+            preprocessor_path = save_path.replace(
+                "_predictions.csv",
+                "_preprocessor.joblib",
+            )
+            joblib.dump(preprocessor, preprocessor_path)
+            print(f"Saved preprocessor: {preprocessor_path}")
 
     return {
         "model": model,
         "metrics": metrics,
         "predictions": predictions,
         "model_path": model_path,
+        "preprocessor_path": preprocessor_path,
     }
 
 
