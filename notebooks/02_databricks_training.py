@@ -28,12 +28,12 @@ from src.models.train_gbdt import run_gbdt_training
 # COMMAND ----------
 
 # Bundle job parameters. Defaults are aligned with the verified Databricks
-# workspace catalog; deployment parameters remain authoritative.
+# workspace catalog and its existing default schema; deployment parameters remain authoritative.
 widget_values = dbutils.widgets.getAll()
 catalog_name = widget_values.get("catalog_name", "netcareaidatabricks")
 experiment_name = widget_values.get("experiment_name", "/Shared/netcare-readmission")
 registered_model_name = widget_values.get(
-    "registered_model_name", "netcareaidatabricks.ml.readmission_model"
+    "registered_model_name", "netcareaidatabricks.default.readmission_model"
 )
 raw_data_path = widget_values.get(
     "raw_data_path", "data/raw/hospital_readmissions.csv"
@@ -49,7 +49,7 @@ print("Registered model:", registered_model_name)
 print("Raw data:", raw_data_path)
 
 # Fail early with a precise configuration error rather than allowing MLflow to
-# fail later with an opaque SCHEMA_DOES_NOT_EXIST response.
+# fail later with an opaque namespace error.
 if not registered_model_name.startswith(f"{catalog_name}."):
     raise ValueError(
         "Registered model must belong to the configured Unity Catalog catalog: "
@@ -57,15 +57,15 @@ if not registered_model_name.startswith(f"{catalog_name}."):
     )
 
 model_parts = registered_model_name.split(".")
-if len(model_parts) != 3 or model_parts[1] != "ml":
+if len(model_parts) != 3 or model_parts[1] != "default":
     raise ValueError(
-        "Registered model must use the three-level Unity Catalog name "
-        "<catalog>.ml.<model>: "
+        "Registered model must use the verified three-level Unity Catalog name "
+        "<catalog>.default.<model>: "
         f"{registered_model_name!r}"
     )
 
-spark.sql(f"DESCRIBE SCHEMA {catalog_name}.ml")
-print(f"Verified Unity Catalog schema: {catalog_name}.ml")
+spark.sql(f"DESCRIBE SCHEMA {catalog_name}.default")
+print(f"Verified Unity Catalog schema: {catalog_name}.default")
 
 # COMMAND ----------
 
