@@ -25,16 +25,19 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-      # Placeholder – expand with Azure login + Databricks bundle deploy
-      - name: Deploy to Databricks (dev)
-        run: |
-          echo "TODO: databricks bundle deploy -t dev"
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Validate Databricks bundle
+        working-directory: databricks
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle validate -t dev
 
-      - name: Deploy Azure ML endpoint (dev)
-        run: |
-          echo "TODO: az ml online-endpoint update / create"
+      - name: Deploy Databricks bundle
+        working-directory: databricks
         env:
-          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle deploy -t dev
