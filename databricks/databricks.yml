@@ -21,8 +21,8 @@ artifacts:
     type: whl
     path: ..
     build: |
-      cd ..
-      python -m pip wheel . --wheel-dir dist --no-deps
+      rm -rf ../dist
+      python -m pip wheel .. --wheel-dir ../dist --no-deps
     files:
       - source: ../dist/*.whl
 
