@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import mlflow
+
 from src.models.quality_gate import QualityGateConfig, QualityGateResult, validate_candidate
 from src.models.registry import register_model, set_model_alias
 
@@ -24,7 +26,12 @@ def register_and_promote_candidate(
     preprocessor: Any = None,
     signature_input: Any = None,
 ) -> tuple[QualityGateResult, str | None]:
-    """Gate a candidate, register it only when approved, then promote it."""
+    """Gate, register, package, and promote an approved candidate.
+
+    Custom PyFunc models are serialized with CloudPickle. Because the serving
+    environment is isolated from the training workspace, the project's Python
+    package must be bundled with the registered model before it is deployed.
+    """
     result = validate_candidate(
         candidate_metrics,
         production_metrics=production_metrics,
@@ -36,7 +43,7 @@ def register_and_promote_candidate(
     if not result.passed:
         return result, None
 
-    run_id = register_model(
+    registered_version = register_model(
         model=model,
         model_name=model_name,
         X_sample=X_sample,
@@ -53,8 +60,17 @@ def register_and_promote_candidate(
     if not model_uri_name:
         raise ValueError("A registered model name is required for promotion")
 
-    set_model_alias(model_uri_name, run_id, alias=alias)
-    return result, run_id
+    packaged_info = mlflow.models.add_libraries_to_model(
+        f"models:/{model_uri_name}/{registered_version}"
+    )
+    packaged_version = getattr(packaged_info, "registered_model_version", None)
+    if packaged_version is None:
+        raise RuntimeError(
+            "MLflow did not return a registered model version for the packaged serving model"
+        )
+
+    set_model_alias(model_uri_name, str(packaged_version), alias=alias)
+    return result, str(packaged_version)
 
 
 def promote_candidate(
