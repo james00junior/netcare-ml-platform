@@ -21,6 +21,8 @@ def register_and_promote_candidate(
     model_tests_passed: bool = True,
     config: QualityGateConfig | None = None,
     alias: str = "champion",
+    preprocessor: Any = None,
+    signature_input: Any = None,
 ) -> tuple[QualityGateResult, str | None]:
     """Gate a candidate, register it only when approved, then promote it."""
     result = validate_candidate(
@@ -43,6 +45,8 @@ def register_and_promote_candidate(
         params=params,
         artifacts=artifacts,
         registered_model_name=registered_model_name,
+        preprocessor=preprocessor,
+        signature_input=signature_input,
     )
 
     model_uri_name = registered_model_name or model_name
