@@ -13,6 +13,7 @@ import joblib
 import mlflow
 import mlflow.sklearn
 import mlflow.xgboost
+from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 
 from src.config import settings
@@ -47,7 +48,8 @@ def register_model(
         try:
             preds = model.predict(X_sample)
             signature = infer_signature(X_sample, preds)
-        except Exception:
+        except (ValueError, TypeError, MlflowException):
+            # Signature inference is optional; model logging must still proceed.
             pass
 
         # Detect model type for the correct flavour
