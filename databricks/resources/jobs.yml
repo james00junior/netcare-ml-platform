@@ -1,0 +1,17 @@
+resources:
+  jobs:
+    train_readmission_model:
+      name: ${bundle.target}-netcare-readmission-training
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: experiment_name
+          default: ${var.experiment_name}
+      tasks:
+        - task_key: train
+          notebook_task:
+            notebook_path: ../../notebooks/02_databricks_training.ipynb
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              experiment_name: ${var.experiment_name}
+              registered_model_name: ${var.registered_model_name}
