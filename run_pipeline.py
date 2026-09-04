@@ -63,6 +63,7 @@ def main() -> None:
         y_train,
         y_test,
         save_path=str(artifacts / "gbdt_model_predictions.csv"),
+        preprocessor=preprocessor,
     )
 
     # 5. Evaluation
@@ -93,7 +94,7 @@ def main() -> None:
     print("=" * 60)
     print(f"Artefacts written to: {artifacts.resolve()}")
     print("  - baseline_model_predictions.csv / .joblib / _preprocessor.joblib")
-    print("  - gbdt_model_predictions.csv / .joblib")
+    print("  - gbdt_model_predictions.csv / .joblib / _preprocessor.joblib")
     print("  - evaluation_metrics_summary.csv")
     print("  - roc_curve.png / precision_recall_curve.png / confusion_matrix*.png")
 
