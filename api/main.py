@@ -1,6 +1,4 @@
-"""
-FastAPI application for the Netcare readmission prediction service.
-"""
+"""FastAPI application for the Netcare readmission prediction service."""
 
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,26 +16,28 @@ from src.serving.schemas import (
     PredictionResponse,
 )
 
-# ---------------------------------------------------------------------------
-# App lifespan – load model once at startup
-# ---------------------------------------------------------------------------
 predictor: ReadmissionPredictor | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Load the model and its fitted preprocessing artifact once at startup."""
+    del app
     global predictor
     model_path = Path("artifacts/gbdt_model_predictions.joblib")
-    if model_path.exists():
+    preprocessor_path = Path("artifacts/gbdt_model_preprocessor.joblib")
+
+    if model_path.exists() and preprocessor_path.exists():
         predictor = ReadmissionPredictor(
             model_path=model_path,
+            preprocessor_path=preprocessor_path,
             model_version="local-gbdt",
         )
         print(f"Model loaded from {model_path}")
     else:
         print(
-            "WARNING: No local model found at artifacts/xgboost_model_predictions.joblib. "
-            "Endpoints will return 503 until a model is available."
+            "WARNING: Model or fitted preprocessor not found under artifacts/. "
+            "Endpoints will return 503 until both are available."
         )
     yield
     predictor = None
@@ -54,6 +54,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 def verify_api_key(api_key: str | None = Security(api_key_header)) -> None:
+    """Validate the optional API key when configured."""
     if settings.api_key and api_key != settings.api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
