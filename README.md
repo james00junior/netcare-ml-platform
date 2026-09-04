@@ -1,6 +1,8 @@
 # Netcare ML Platform
 
-Production ML platform for **30-day hospital readmission prediction**, designed for deployment on **Google Cloud Platform (GCP)** with **Databricks on GCP**.
+Production ML platform for **30-day hospital readmission prediction**, designed exclusively for **Google Cloud Platform (GCP)** with **Databricks on GCP**.
+
+> **Platform constraint:** Azure is not part of this architecture or implementation. All cloud, data, ML lifecycle, serving and CI/CD decisions in this repository target GCP + Databricks on GCP.
 
 ## 1. Platform objective
 
@@ -47,7 +49,7 @@ Hospital / Clinical Source Systems
                     MLflow Tracking
                           │
                           ▼
-                  Quality Gate
+                    Quality Gate
                           │
                           ▼
                  UC Model Registry
@@ -147,7 +149,7 @@ nectare.ml.readmission_features
 nectare.ml.readmission_model
 ```
 
-## 6. ML lifecycle
+## 6. ML lifecycle and Phase 6 governance
 
 ```text
 Raw Data
@@ -160,24 +162,24 @@ Leakage-safe Preprocessing
    ↓
 Model Training
    ↓
-Evaluation
-   ↓
 MLflow Experiment
+   ↓
+Candidate Evaluation
    ↓
 Quality Gate
    ↓
-UC Registered Model
+Register Candidate
    ↓
-Approved Version
+Compare with Champion
    ↓
-champion Alias
+Promote `champion` Alias
    ↓
 Model Serving
 ```
 
 A model is **not promoted merely because training succeeded**.
 
-The quality gate requires:
+The Phase 6 quality gate requires:
 
 - ROC-AUC ≥ 0.70;
 - Recall ≥ 0.60;
@@ -185,7 +187,7 @@ The quality gate requires:
 - model tests passed;
 - candidate performance must not regress against the production model when production comparison is required.
 
-Unity Catalog aliases are used for lifecycle management rather than legacy MLflow model stages.
+Registration and promotion are separate operations. A registered model version receives the `champion` Unity Catalog alias only after the promotion gate passes. Unity Catalog aliases are used instead of legacy MLflow model stages.
 
 ## 7. Current model baseline
 
@@ -218,68 +220,81 @@ PRODUCTION
 
 Environment-specific configuration must be supplied through deployment configuration and secret management. Credentials must never be committed to the repository.
 
-## 9. Production API
+## 9. Production inference architecture
 
-The external integration contract will be versioned independently of the model implementation:
+The local FastAPI predictor uses the **same fitted preprocessing artifact produced during training**. This prevents production inference from independently refitting or reconstructing preprocessing logic.
+
+The intended managed production path is:
+
+```text
+Client
+  ↓
+GCP API Gateway
+  ↓
+Cloud Run / FastAPI integration
+  ↓
+Databricks Model Serving
+  ↓
+Champion model
+```
+
+External API contract:
 
 ```text
 POST /v1/predictions/readmission
 ```
 
-Example request:
+The final production contract will be aligned with the actual Databricks serving input schema before deployment.
 
-```json
-{
-  "age": 67,
-  "gender": "Female",
-  "admission_type": "Emergency",
-  "length_of_stay": 5,
-  "creatinine": 1.4,
-  "hemoglobin": 11.2
-}
+## 10. Databricks on GCP
+
+Databricks resources are managed as code through the Declarative Automation Bundle under `databricks/`.
+
+The current environment model is:
+
+```text
+                 databricks.yml
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+         DEV       STAGING       PROD
+          │           │           │
+          └────── Databricks ─────┘
+                      │
+                Unity Catalog
+                      │
+              Training / Serving
 ```
 
-Example response:
+Actual workspace deployment remains environment-dependent. The repository contains the deployment definitions, but a real deployment requires the target GCP/Databricks workspace and authenticated deployment configuration.
 
-```json
-{
-  "prediction": "high_risk",
-  "probability": 0.78,
-  "model_version": "4"
-}
-```
-
-The final production contract will be aligned with the actual model-serving input schema before deployment.
-
-## 10. Security
+## 11. Security
 
 Production security design:
 
 - GCP IAM and service accounts for workload identity;
 - GCP Secret Manager for application and integration secrets;
 - Databricks permissions and Unity Catalog grants for data/model access;
-- least-privilege service accounts;
-- no credentials in source code, notebooks or committed `.env` files;
-- no raw patient-identifying values in MLflow prediction logs;
-- API authentication and authorization at the integration layer.
+- no credentials or tokens committed to GitHub;
+- least-privilege access to Bronze, Silver, Gold and ML assets;
+- MLflow logging excludes raw patient input values from inference telemetry.
 
-## 11. Monitoring
+## 12. Monitoring
 
 ### Infrastructure
 
 - API latency
-- request volume
-- error rates
-- endpoint availability
-- Cloud Run health
-- Databricks job failures
+- request/error rates
+- service availability
+- throughput
+- Cloud Monitoring and Cloud Logging
 
 ### Data
 
+- missing values
 - schema changes
-- missing-value rates
-- categorical distribution changes
-- feature drift
+- distribution changes
+- data drift
 
 ### Model
 
@@ -289,94 +304,243 @@ Production security design:
 - Recall
 - Precision
 - F1
-- degradation against the approved baseline
+- production degradation
 
 ### Outcome feedback
 
 ```text
 Prediction
-   ↓
-Prediction Log
-   ↓
-Actual Outcome Arrives
-   ↓
-Prediction + Outcome Join
-   ↓
-Production Metrics
-   ↓
-Quality / Retraining Decision
+    ↓
+Prediction log
+    ↓
+Actual outcome arrives later
+    ↓
+Join prediction + outcome
+    ↓
+Calculate production performance
 ```
 
-## 12. Retraining
-
-Retraining will be controlled rather than unconditional:
+## 13. Retraining strategy
 
 ```text
 Production Data
       ↓
-Drift / New Labels / Schedule
+Drift / New Labels
       ↓
-Retraining Job
+Retraining Workflow
       ↓
-Validation
-      ↓
-Training
-      ↓
-Evaluation
+Candidate Evaluation
       ↓
 Quality Gate
-   ┌──┴──┐
- Reject  Approve
-   │       │
-   │       ▼
-   │   Register Version
-   │       ↓
-   │   Promote Alias
-   │       ↓
-   │   Deploy
-   └───────┘
+      ├── Fail → Reject
+      ↓
+Register Model Version
+      ↓
+Compare with Champion
+      ├── Worse → Reject
+      ↓
+Promote Champion
+      ↓
+Deploy
 ```
 
-## 13. Release strategy
+Retraining may be scheduled, triggered by significant drift, or triggered by availability of new outcome labels.
 
-Production releases will support staged rollout:
+## 14. Release and rollback strategy
+
+The production model uses Unity Catalog aliases so that deployment targets a governed model reference rather than a hard-coded version.
+
+Example staged rollout:
 
 ```text
-Model v1 → 100%
+Model v1 → 100% production
 
-Model v1 → 90%     Model v2 → 10%
+Model v2 → candidate
 
-Model v1 → 50%     Model v2 → 50%
+Model v2 → 10% traffic
+Model v1 → 90% traffic
 
-Model v2 → 100%
+Model v2 → 50% traffic
+Model v1 → 50% traffic
+
+Model v2 → 100% traffic
 ```
 
-If v2 fails production checks, traffic can be returned to v1.
+If the new model fails production checks, traffic can be returned to the previous approved model version.
 
-## 14. Delivery phases
+## 15. CI/CD
 
-1. **Production Data Science Pipeline** — complete
-2. **MLflow Tracking and Registry** — foundation implemented
-3. **GCP Data Lake + Databricks Medallion** — architecture and repository foundation
-4. **Databricks Workflows** — bundle/job foundation
-5. **Unity Catalog Governance** — catalog, schemas and grants foundation
-6. **Model Registry and Promotion** — quality gate, UC aliases and promotion tests in progress
-7. **CI/CD with GitHub Actions + Databricks** — DEV/STAGING/PROD deployment workflows
-8. **Production Model Serving** — Databricks Model Serving
-9. **Integration Layer** — Cloud Run/FastAPI + GCP API Gateway
-10. **Security and Secrets** — IAM + Secret Manager + workload identity
-11. **Monitoring and Observability** — Cloud Monitoring/Logging + data/model monitoring
-12. **Drift Detection and Retraining** — automated controlled retraining
-13. **Production Release Strategy** — canary/staged release and rollback
+GitHub Actions is the source-controlled automation layer.
 
-## 15. Current status
+The normal CI quality gate is intentionally **immutable**:
 
-**Phase 6 — Model Registry and Promotion is the active phase.**
+```text
+Push / Pull Request
+       ↓
+Install dependencies
+       ↓
+Ruff
+       ↓
+Black --check
+       ↓
+Pytest
+       ↓
+Coverage reporting
+```
 
-The next engineering objective is to complete the Phase 6 governed lifecycle, then move to Phase 7 CI/CD validation and deployment.
+Automated format-and-commit workflows are not part of the permanent CI design.
 
-Cloud deployment is intentionally environment-dependent: the repository defines the architecture and deployment assets, while actual GCP and Databricks resources require the corresponding customer/workspace credentials and configuration.
+## 16. Implementation roadmap
 
-## License
+### Phase 1 — Production Data Science Pipeline
 
-Proprietary – Netcare
+**Status: COMPLETE**
+
+- leakage-safe preprocessing
+- train/test split
+- baseline model
+- HistGradientBoosting model
+- evaluation
+- persisted model artifacts
+- persisted fitted preprocessing
+- production inference consistency
+- automated tests
+
+### Phase 2 — MLflow Tracking and Registry
+
+**Status: PARTIAL**
+
+- experiment tracking foundations
+- model logging
+- registry integration foundations
+- Unity Catalog registry configuration
+
+Remaining work is integrated governed lifecycle validation.
+
+### Phase 3 — GCP Data Lake + Databricks Medallion
+
+**Status: PARTIAL**
+
+- GCS architecture
+- Bronze/Silver/Gold design
+- Databricks processing architecture
+
+Actual cloud deployment and validation remain environment-dependent.
+
+### Phase 4 — Databricks Workflows
+
+**Status: PARTIAL**
+
+- Databricks Bundle foundation
+- environment targets
+- training job resource
+
+Actual workspace deployment and execution remain pending.
+
+### Phase 5 — Unity Catalog
+
+**Status: FOUNDATION COMPLETE**
+
+- `nectare` catalog design
+- Bronze/Silver/Gold/ML schemas
+- governance SQL
+- least-privilege grant templates
+- governance documentation
+
+### Phase 6 — Model Registry and Promotion
+
+**Status: IN PROGRESS — CURRENT PHASE**
+
+- quality gate implementation
+- candidate-vs-production comparison
+- Unity Catalog alias helpers
+- governed promotion workflow
+- promotion tests
+- CI quality cleanup
+- production preprocessing consistency fix
+
+Remaining Phase 6 work: integrate the full candidate registration/promotion flow and validate it end-to-end.
+
+### Phase 7 — CI/CD with GitHub Actions + Databricks
+
+**Status: NEXT**
+
+```text
+GitHub
+  ↓
+GitHub Actions
+  ↓
+Quality Gates
+  ↓
+Databricks Bundle
+  ↓
+DEV
+  ↓
+STAGING
+  ↓
+PRODUCTION
+```
+
+### Phase 8 — Production Model Serving
+
+**Status: PENDING**
+
+Deploy approved Unity Catalog model versions through Databricks Model Serving.
+
+### Phase 9 — Integration Layer
+
+**Status: PENDING**
+
+Build the GCP API Gateway → Cloud Run/FastAPI → Databricks Serving integration.
+
+### Phase 10 — Security and Secrets
+
+**Status: PENDING**
+
+Implement production IAM, service accounts, Secret Manager and deployment secret handling.
+
+### Phase 11 — Monitoring and Observability
+
+**Status: PENDING**
+
+Implement infrastructure, data, model and outcome monitoring.
+
+### Phase 12 — Drift Detection and Retraining
+
+**Status: PENDING**
+
+Automate drift detection, retraining, validation and governed model promotion.
+
+### Phase 13 — Production Model Release Strategy
+
+**Status: PENDING**
+
+Implement staged rollout, monitoring gates and rollback to the previous approved model.
+
+## 17. Current engineering state
+
+**Current phase: Phase 6 — Model Registry and Promotion.**
+
+The repository is intentionally being advanced phase-by-phase. Before moving to the next phase, the current phase must be implemented, tested and documented.
+
+### Source of truth
+
+**GitHub `main` is the source of truth.** The development workflow is:
+
+```text
+Inspect GitHub
+    ↓
+Implement on GitHub
+    ↓
+Update README / architecture documentation
+    ↓
+CI verification
+    ↓
+User pulls main locally
+    ↓
+User runs local verification
+    ↓
+Continue to next phase
+```
+
+Do not introduce Azure resources, Azure deployment instructions or Azure-specific Databricks architecture into this repository. The target cloud architecture is **GCP + Databricks on GCP**.
