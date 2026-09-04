@@ -23,6 +23,8 @@ resources:
               ResourceClass: SingleNode
       tasks:
         - task_key: train
+          libraries:
+            - whl: ${artifacts.default.whl}
           notebook_task:
             notebook_path: ../../notebooks/02_databricks_training.py
             base_parameters:
