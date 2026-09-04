@@ -17,6 +17,7 @@ from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 
 from src.config import settings
+from src.serving.mlflow_model import ReadmissionServingModel
 
 
 def register_model(
@@ -28,8 +29,17 @@ def register_model(
     params: dict[str, Any] | None = None,
     artifacts: dict[str, str] | None = None,
     registered_model_name: str | None = None,
+    preprocessor: Any = None,
+    signature_input: Any = None,
 ) -> str:
-    """Log a model and return its registered version when UC registration is enabled."""
+    """Log a model and return its registered version when UC registration is enabled.
+
+    When a fitted preprocessor is supplied, register a self-contained MLflow
+    PyFunc model that accepts the raw feature dataframe and applies the same
+    training-time preprocessing before inference. This is the production
+    serving path; estimator-only registration remains available for callers
+    that intentionally provide transformed features.
+    """
     del model_name, y_sample
     registered_model_name = registered_model_name or settings.registered_model_name
 
@@ -43,23 +53,38 @@ def register_model(
         if metrics:
             mlflow.log_metrics(metrics)
 
-        signature = None
-        try:
-            preds = model.predict(X_sample)
-            signature = infer_signature(X_sample, preds)
-        except (ValueError, TypeError, MlflowException):
-            signature = None
-
         model_type = type(model).__name__
-        model_log_kwargs = {
-            "name": "model",
-            "signature": signature,
-            "registered_model_name": registered_model_name,
-        }
-        if "XGB" in model_type:
-            model_info = mlflow.xgboost.log_model(model, **model_log_kwargs)
+
+        if preprocessor is not None:
+            serving_model = ReadmissionServingModel(model, preprocessor)
+            raw_input = signature_input if signature_input is not None else X_sample
+            serving_predictions = serving_model.predict(None, raw_input)
+            signature = infer_signature(raw_input, serving_predictions)
+            model_info = mlflow.pyfunc.log_model(
+                name="model",
+                python_model=serving_model,
+                code_paths=["src"],
+                signature=signature,
+                input_example=raw_input.head(2) if hasattr(raw_input, "head") else None,
+                registered_model_name=registered_model_name,
+            )
         else:
-            model_info = mlflow.sklearn.log_model(model, **model_log_kwargs)
+            signature = None
+            try:
+                preds = model.predict(X_sample)
+                signature = infer_signature(X_sample, preds)
+            except (ValueError, TypeError, MlflowException):
+                signature = None
+
+            model_log_kwargs = {
+                "name": "model",
+                "signature": signature,
+                "registered_model_name": registered_model_name,
+            }
+            if "XGB" in model_type:
+                model_info = mlflow.xgboost.log_model(model, **model_log_kwargs)
+            else:
+                model_info = mlflow.sklearn.log_model(model, **model_log_kwargs)
 
         if artifacts:
             for name, path in artifacts.items():
