@@ -10,8 +10,8 @@ variables:
     description: Unity Catalog catalog used by this environment
     default: nectare
   experiment_name:
-    description: MLflow experiment name
-    default: netcare-readmission
+    description: Absolute Databricks workspace path for the MLflow experiment
+    default: /Shared/netcare-readmission
   registered_model_name:
     description: Unity Catalog registered model name
     default: nectare.ml.readmission_model
