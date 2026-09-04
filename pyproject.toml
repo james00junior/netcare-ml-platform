@@ -48,7 +48,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "model_serving*"]
+include = ["src*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
