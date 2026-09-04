@@ -45,7 +45,7 @@ def register_model(
     When a fitted preprocessor is supplied, the registered artifact is a
     self-contained MLflow PyFunc model. It accepts raw feature records and
     applies deterministic cleaning plus the fitted training transformer before
-    calling the estimator. This is the production serving path.
+    calling the estimator.
     """
     del model_name, y_sample
     registered_model_name = registered_model_name or settings.registered_model_name
@@ -87,6 +87,7 @@ def register_model(
             model_info = mlflow.pyfunc.log_model(
                 name="model",
                 python_model=serving_model,
+                code_paths=["src"],
                 pip_requirements=MLFLOW_SERVING_REQUIREMENTS,
                 signature=signature,
                 input_example=serving_input.head(2)
