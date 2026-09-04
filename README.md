@@ -324,6 +324,21 @@ The current single-node cluster is therefore a **validation configuration** rath
 
 The key engineering conclusion is that the observed eight-minute wall-clock runtime is primarily **platform startup overhead**, not evidence that the model-training algorithm is computationally expensive.
 
+### Repeated DEV validation runs
+
+Repeated successful runs strengthen the conclusion that the platform path is stable rather than the result of a one-off successful execution.
+
+Recorded successful Phase 6 DEV runs include:
+
+| Run | Start | End | Wall-clock duration | Result |
+|---|---|---|---:|---|
+| First corrected run | 15:26:16 | 15:34:42 | 8m 26s | `TERMINATED SUCCESS` |
+| Second corrected run | 15:41:52 | 15:52:10 | 10m 18s | `TERMINATED SUCCESS` |
+
+The variation in total duration further demonstrates that wall-clock time is dominated by Databricks environment and cluster lifecycle overhead rather than deterministic model-training complexity. Both executions reached successful completion through the same GCP/Databricks training path.
+
+This is an important engineering distinction: **successful repeated execution is a reliability signal, while wall-clock runtime in an ephemeral DEV job is not a useful measure of the underlying model's computational cost.**
+
 Actual workspace deployment remains environment-dependent. The repository contains the deployment definitions, but a real deployment requires the target GCP/Databricks workspace and authenticated deployment configuration.
 
 ## 11. Security
@@ -526,11 +541,14 @@ Completed/validated foundations:
 - Databricks execution reaching candidate evaluation
 - correction of missing recall calculation in model evaluation
 - successful DEV Databricks training execution after the recall fix
+- repeated successful DEV Databricks executions confirming training-path stability
 
 Current validation:
 
 - corrected training code is deployed through the Databricks Bundle;
 - the DEV run completed successfully after training, evaluation and quality-gate validation;
+- a second corrected DEV run also completed successfully;
+- repeated success confirms the infrastructure/package/data-access/training path is stable across executions;
 - the quality gate remains strict and will reject a genuinely underperforming candidate.
 
 Remaining Phase 6 work: integrate the full candidate registration/promotion flow with the Databricks workspace and validate it end-to-end against the Unity Catalog environment.
