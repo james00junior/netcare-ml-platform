@@ -51,20 +51,15 @@ def register_model(
             signature = None
 
         model_type = type(model).__name__
+        model_log_kwargs = {
+            "name": "model",
+            "signature": signature,
+            "registered_model_name": registered_model_name,
+        }
         if "XGB" in model_type:
-            model_info = mlflow.xgboost.log_model(
-                model,
-                artifact_path="model",
-                signature=signature,
-                registered_model_name=registered_model_name,
-            )
+            model_info = mlflow.xgboost.log_model(model, **model_log_kwargs)
         else:
-            model_info = mlflow.sklearn.log_model(
-                model,
-                artifact_path="model",
-                signature=signature,
-                registered_model_name=registered_model_name,
-            )
+            model_info = mlflow.sklearn.log_model(model, **model_log_kwargs)
 
         if artifacts:
             for name, path in artifacts.items():
