@@ -11,26 +11,28 @@ def load_raw_data(path: str | Path | None = None) -> pd.DataFrame:
     """
     Load the raw hospital readmissions dataset.
 
-    Parameters
-    ----------
-    path : str or Path, optional
-        Path to the CSV file. Defaults to settings.raw_data_path.
-
-    Returns
-    -------
-    pd.DataFrame
-        Raw dataset.
+    Local filesystem paths are read with pandas. Cloud URIs (for example
+    ``gs://...``) are read through pandas' fsspec-compatible storage layer.
     """
-    data_path = Path(path) if path else Path(settings.raw_data_path)
+    data_path = str(path) if path else settings.raw_data_path
 
-    if not data_path.exists():
+    if "://" in data_path:
+        try:
+            return pd.read_csv(data_path)
+        except Exception as exc:
+            raise FileNotFoundError(
+                f"Raw data could not be read from {data_path}. "
+                "Verify the cloud path and Databricks storage permissions."
+            ) from exc
+
+    local_path = Path(data_path)
+    if not local_path.exists():
         raise FileNotFoundError(
-            f"Raw data not found at {data_path}. "
+            f"Raw data not found at {local_path}. "
             "Place hospital_readmissions.csv in the configured path or pass an explicit path."
         )
 
-    df = pd.read_csv(data_path)
-    return df
+    return pd.read_csv(local_path)
 
 
 def save_processed_data(
