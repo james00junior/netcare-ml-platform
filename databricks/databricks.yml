@@ -1,31 +1,48 @@
-# Databricks Asset Bundle configuration (placeholder)
 bundle:
   name: netcare-ml-platform
+  engine: direct
+
+include:
+  - resources/*.yml
 
 variables:
+  catalog_name:
+    description: Unity Catalog catalog used by this environment
+    default: nectare
   experiment_name:
+    description: MLflow experiment name
     default: netcare-readmission
   registered_model_name:
-    default: netcare-readmission-model
+    description: Unity Catalog registered model name
+    default: nectare.ml.readmission_model
 
+sync:
+  include:
+    - ../src/**
+    - ../notebooks/**
+
+# Each target represents a separate Databricks deployment environment.
+# The workspace host must be supplied through the Databricks CLI/GitHub Actions
+# environment; credentials are never stored in this repository.
 targets:
   dev:
+    mode: development
     default: true
     workspace:
       host: ${DATABRICKS_HOST}
+    variables:
+      catalog_name: nectare
+
+  staging:
+    mode: production
+    workspace:
+      host: ${DATABRICKS_HOST_STAGING}
+    variables:
+      catalog_name: nectare
 
   prod:
+    mode: production
     workspace:
-      host: ${DATABRICKS_HOST}
-
-artifacts: {}
-
-resources:
-  # Example job – expand later
-  jobs:
-    train_readmission_model:
-      name: train-readmission-model
-      tasks:
-        - task_key: train
-          notebook_task:
-            notebook_path: ../notebooks/02_databricks_training.ipynb
+      host: ${DATABRICKS_HOST_PROD}
+    variables:
+      catalog_name: nectare
