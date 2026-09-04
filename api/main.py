@@ -30,8 +30,7 @@ async def lifespan(app: FastAPI):
     if settings.is_production:
         if not settings.databricks_serving_endpoint or not settings.databricks_serving_token:
             raise RuntimeError(
-                "Production requires DATABRICKS_SERVING_ENDPOINT and "
-                "DATABRICKS_SERVING_TOKEN."
+                "Production requires DATABRICKS_SERVING_ENDPOINT and " "DATABRICKS_SERVING_TOKEN."
             )
         predictor = DatabricksServingClient(
             endpoint_url=settings.databricks_serving_endpoint,
