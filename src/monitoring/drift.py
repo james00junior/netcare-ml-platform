@@ -65,7 +65,7 @@ def detect_data_drift(
         cur_abs = cur_vec * len(current)
         try:
             stat, p_value = stats.chisquare(cur_abs + 1e-6, ref_abs + 1e-6)
-        except Exception:
+        except (ValueError, TypeError):
             stat, p_value = 0.0, 1.0
         drifted = p_value < threshold
         column_reports.append(
