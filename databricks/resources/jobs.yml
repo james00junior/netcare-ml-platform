@@ -15,6 +15,9 @@ resources:
             spark_version: "15.4.x-scala2.12"
             node_type_id: "n2-standard-4"
             driver_node_type_id: "n2-standard-4"
+            driver_node_type_flexibility:
+              alternate_node_type_ids:
+                - "n2d-standard-4"
             num_workers: 0
             data_security_mode: USER_ISOLATION
             gcp_attributes:
