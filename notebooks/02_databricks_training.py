@@ -27,11 +27,17 @@ from src.models.train_gbdt import run_gbdt_training
 
 # COMMAND ----------
 
-# Bundle job parameters.
-catalog_name = dbutils.widgets.get("catalog_name") if "catalog_name" in dbutils.widgets.getAll() else "nectare"
-experiment_name = dbutils.widgets.get("experiment_name") if "experiment_name" in dbutils.widgets.getAll() else "/Shared/netcare-readmission"
-registered_model_name = dbutils.widgets.get("registered_model_name") if "registered_model_name" in dbutils.widgets.getAll() else "nectare.ml.readmission_model"
-raw_data_path = dbutils.widgets.get("raw_data_path") if "raw_data_path" in dbutils.widgets.getAll() else "data/raw/hospital_readmissions.csv"
+# Bundle job parameters. Defaults are aligned with the verified Databricks
+# workspace catalog; deployment parameters remain authoritative.
+widget_values = dbutils.widgets.getAll()
+catalog_name = widget_values.get("catalog_name", "netcareaidatabricks")
+experiment_name = widget_values.get("experiment_name", "/Shared/netcare-readmission")
+registered_model_name = widget_values.get(
+    "registered_model_name", "netcareaidatabricks.ml.readmission_model"
+)
+raw_data_path = widget_values.get(
+    "raw_data_path", "data/raw/hospital_readmissions.csv"
+)
 
 mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
 mlflow.set_registry_uri(settings.mlflow_registry_uri)
@@ -41,6 +47,25 @@ print("Catalog:", catalog_name)
 print("Experiment:", experiment_name)
 print("Registered model:", registered_model_name)
 print("Raw data:", raw_data_path)
+
+# Fail early with a precise configuration error rather than allowing MLflow to
+# fail later with an opaque SCHEMA_DOES_NOT_EXIST response.
+if not registered_model_name.startswith(f"{catalog_name}."):
+    raise ValueError(
+        "Registered model must belong to the configured Unity Catalog catalog: "
+        f"catalog={catalog_name!r}, registered_model_name={registered_model_name!r}"
+    )
+
+model_parts = registered_model_name.split(".")
+if len(model_parts) != 3 or model_parts[1] != "ml":
+    raise ValueError(
+        "Registered model must use the three-level Unity Catalog name "
+        "<catalog>.ml.<model>: "
+        f"{registered_model_name!r}"
+    )
+
+spark.sql(f"DESCRIBE SCHEMA {catalog_name}.ml")
+print(f"Verified Unity Catalog schema: {catalog_name}.ml")
 
 # COMMAND ----------
 
