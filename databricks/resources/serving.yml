@@ -1,0 +1,14 @@
+resources:
+  model_serving_endpoints:
+    readmission_model_endpoint:
+      name: ${bundle.target}-netcare-readmission
+      config:
+        served_entities:
+          - entity_name: ${var.registered_model_name}
+            entity_version: ${var.serving_model_version}
+            workload_size: Small
+            scale_to_zero_enabled: true
+        traffic_config:
+          routes:
+            - served_model_name: readmission_model-${var.serving_model_version}
+              traffic_percentage: 100
