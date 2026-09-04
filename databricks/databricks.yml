@@ -16,12 +16,13 @@ variables:
     description: Unity Catalog registered model name
     default: nectare.ml.readmission_model
 
-# The training notebook imports the synced src package directly.
-# No Python wheel is required for this notebook task, so deployments avoid
-# the extra wheel build/upload step.
+artifacts:
+  default:
+    type: whl
+    path: ..
+
 sync:
   paths:
-    - ../src
     - ../notebooks
 
 targets:
