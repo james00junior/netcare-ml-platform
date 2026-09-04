@@ -9,7 +9,7 @@ from typing import Any
 import joblib
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
+from sklearn.metrics import accuracy_score, classification_report, recall_score, roc_auc_score
 
 from src.config.model_config import HistGBConfig
 
@@ -73,6 +73,7 @@ def run_gbdt_training(
     metrics = {
         "accuracy": float(accuracy_score(y_test, preds)),
         "roc_auc": float(roc_auc_score(y_test, probs)),
+        "recall": float(recall_score(y_test, preds, zero_division=0)),
     }
 
     print("=" * 60)
@@ -80,6 +81,7 @@ def run_gbdt_training(
     print("=" * 60)
     print(f"  Accuracy : {metrics['accuracy']:.4f}")
     print(f"  AUC-ROC  : {metrics['roc_auc']:.4f}")
+    print(f"  Recall   : {metrics['recall']:.4f}")
     print(classification_report(y_test, preds, digits=3))
 
     predictions = pd.DataFrame(
