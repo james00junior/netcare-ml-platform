@@ -16,10 +16,14 @@ variables:
     description: Unity Catalog registered model name
     default: nectare.ml.readmission_model
 
+# The bundle lives under databricks/, while application code and notebooks
+# live at the repository root. sync.paths explicitly includes those shared
+# directories, which is required when files live outside the bundle root.
 sync:
-  include:
-    - ../src/**
-    - ../notebooks/**
+  paths:
+    - .
+    - ../src
+    - ../notebooks
 
 # Each target represents a separate Databricks deployment environment.
 # DEV is pinned to the validated GCP workspace. Credentials remain outside Git.
