@@ -4,38 +4,63 @@ Production ML system for **30-day hospital readmission prediction**.
 
 ## Architecture
 
-```
-Development → Data Ingestion → Validation → Feature Engineering
-    → Training → Experiment Tracking → Model Registry
-    → Testing → Deployment → API Integration → Monitoring → Retraining
+The platform is designed for **GCP**, with **Google Cloud Storage (GCS)** as the data lake and **Databricks on GCP** as the data engineering and ML platform.
+
+```text
+                         Google Cloud Platform
+                                  │
+                         Google Cloud Storage
+                                  │
+                 ┌────────────────┼────────────────┐
+                 ▼                ▼                ▼
+              BRONZE           SILVER             GOLD
+             Raw data       Clean/validated     ML-ready
+                                  │              features
+                                  └───────┬────────┘
+                                          ▼
+                                  Databricks on GCP
+                                          │
+                                      MLflow
+                                  ┌───────┴────────┐
+                                  ▼                ▼
+                            Experiments      Model Registry
+                                                   │
+                                                   ▼
+                                             Model Serving
+                                                   │
+                                                   ▼
+                                                FastAPI
+                                                   │
+                                                   ▼
+                                           Hospital systems
 ```
 
 **Stack**
-- **Azure Databricks** – data engineering, feature pipelines, training, MLflow
-- **MLflow + Unity Catalog** – experiment tracking, model registry, lineage
-- **Azure Machine Learning** – managed online / batch endpoints
-- **FastAPI** – business/integration API layer
-- **Azure API Management** – secure exposure to hospital systems
-- **Azure Key Vault**, **Azure Monitor**, **GitHub Actions**, **ADLS Gen2**
+- **Google Cloud Storage (GCS)** – cloud data lake and raw/processed data storage
+- **Databricks on GCP** – ingestion, validation, transformation, feature engineering and model training
+- **Delta Lake / Medallion Architecture** – Bronze, Silver and Gold data layers
+- **MLflow** – experiment tracking, model artifacts, model registry and lineage
+- **FastAPI** – prediction and integration API layer
+- **GitHub Actions** – CI/CD and automated testing
 
 ## Project Structure
 
-```
+```text
 netcare-ml-platform/
 ├── src/
 │   ├── config/          # Settings & model hyperparameters
 │   ├── data/            # Ingestion, validation, preprocessing
 │   ├── features/        # Feature matrix construction
-│   ├── models/          # Train baseline / XGBoost, evaluate, registry
+│   ├── models/          # Training, evaluation and model registry
 │   ├── serving/         # Predictor + Pydantic schemas
 │   └── monitoring/      # Drift & performance monitoring
 ├── api/                 # FastAPI application
 ├── notebooks/           # Exploration & Databricks training notebooks
-├── tests/
-├── databricks/          # Databricks asset bundles
-├── infrastructure/      # Terraform / Azure Bicep
+├── tests/               # Automated tests
+├── databricks/          # Databricks asset bundles and jobs
+├── infrastructure/      # Cloud infrastructure definitions
 ├── .github/workflows/   # CI/CD
-└── docs/
+└── docs/                # Architecture and technical documentation
 ```
 
 ## Quick Start (Local)
@@ -65,6 +90,12 @@ make evaluate
 make serve
 ```
 
+The complete local pipeline can also be executed with:
+
+```bash
+python run_pipeline.py
+```
+
 ## Extracted Logic
 
 | Original Assessment Script | Production Module |
@@ -74,13 +105,13 @@ make serve
 | `deliverable_3_baseline_model.py` | `src/models/train_baseline.py` + `src/models/train_xgboost.py` |
 | `deliverable_4_evaluation_pack.py` | `src/models/evaluate.py` |
 
-## Next Steps
+## Delivery Roadmap
 
-1. Wire MLflow tracking (local or Databricks)
-2. Add Databricks notebooks / jobs
-3. Deploy Azure ML managed endpoint
-4. Add CI/CD pipelines
-5. Implement scheduled drift monitoring + retraining triggers
+1. **Production data science pipeline** – leakage-safe preprocessing, reproducible training and evaluation
+2. **MLflow tracking and model registry** – track datasets, parameters, metrics, artifacts and model versions
+3. **GCP data lake + Databricks medallion architecture** – GCS Bronze → Silver → Gold data processing
+4. **Databricks workflows** – orchestrate ingestion, validation, feature engineering, training and evaluation
+5. **Production serving and monitoring** – FastAPI inference, drift detection, performance monitoring and retraining triggers
 
 ## License
 
