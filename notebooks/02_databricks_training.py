@@ -19,7 +19,11 @@ if bundle_root not in sys.path:
 
 from src.config import settings
 from src.data.ingestion import load_raw_data
-from src.data.preprocessing import prepare_train_test_data
+from src.data.preprocessing import (
+    clean_identifiers_and_leakage,
+    prepare_train_test_data,
+    standardise_categoricals,
+)
 from src.data.validation import run_data_quality_checks
 from src.models.promotion import register_and_promote_candidate
 from src.models.train_baseline import run_baseline_training
@@ -106,6 +110,12 @@ candidate_result = max(
 )
 candidate_metrics = candidate_result["metrics"]
 
+# Retain the corresponding raw feature rows for the production MLflow PyFunc
+# signature. The registered model must accept the same raw contract as the API.
+raw_features = clean_identifiers_and_leakage(df).drop(columns=["readmitted_30d"])
+raw_features = standardise_categoricals(raw_features)
+raw_signature_sample = raw_features.loc[X_train.index]
+
 print("Training rows:", len(X_train))
 print("Test rows:", len(X_test))
 print("Candidate metrics:", candidate_metrics)
@@ -128,7 +138,8 @@ with mlflow.start_run(run_name="readmission-candidate") as run:
 print("Candidate MLflow run:", candidate_run_id)
 
 # Phase 6 governance: apply the strict quality gate before registration,
-# then register the approved estimator in Unity Catalog and assign the champion alias.
+# then register the approved estimator together with its fitted preprocessor
+# so the production serving contract accepts raw patient feature records.
 quality_result, registered_version = register_and_promote_candidate(
     model=candidate_result["model"],
     model_name="readmission_model",
@@ -139,6 +150,8 @@ quality_result, registered_version = register_and_promote_candidate(
     data_validation_passed=data_validation_passed,
     model_tests_passed=True,
     alias="champion",
+    preprocessor=preprocessor,
+    signature_input=raw_signature_sample,
 )
 
 print("Quality gate passed:", quality_result.passed)
