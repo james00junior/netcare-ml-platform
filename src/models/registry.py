@@ -17,7 +17,7 @@ from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 
 from src.config import settings
-from src.serving.mlflow_model import ReadmissionServingModel
+from model_serving.mlflow_model import ReadmissionServingModel
 
 
 MLFLOW_SERVING_REQUIREMENTS = [
@@ -87,7 +87,7 @@ def register_model(
             model_info = mlflow.pyfunc.log_model(
                 name="model",
                 python_model=serving_model,
-                code_paths=["src"],
+                code_paths=["model_serving"],
                 pip_requirements=MLFLOW_SERVING_REQUIREMENTS,
                 signature=signature,
                 input_example=serving_input.head(2)
