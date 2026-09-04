@@ -24,6 +24,7 @@ MLFLOW_SERVING_REQUIREMENTS = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
     "scikit-learn>=1.3.0",
+    "pydantic-settings>=2.0.0",
 ]
 
 
