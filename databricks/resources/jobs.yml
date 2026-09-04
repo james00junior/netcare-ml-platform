@@ -7,6 +7,8 @@ resources:
           default: ${var.catalog_name}
         - name: experiment_name
           default: ${var.experiment_name}
+        - name: raw_data_path
+          default: gs://databricks-8259552034754034/hospital_readmissions.csv
       environments:
         - environment_key: default
           spec:
@@ -21,4 +23,5 @@ resources:
               catalog_name: ${var.catalog_name}
               experiment_name: ${var.experiment_name}
               registered_model_name: ${var.registered_model_name}
+              raw_data_path: gs://databricks-8259552034754034/hospital_readmissions.csv
           environment_key: default
