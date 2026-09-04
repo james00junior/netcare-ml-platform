@@ -132,10 +132,10 @@ Analytics- and ML-ready datasets containing approved features for downstream tra
 
 ### Unity Catalog
 
-The current governance design uses the `nectare` catalog:
+The current governance design uses the `netcareaidatabricks` catalog:
 
 ```text
-nectare
+netcareaidatabricks
 ├── bronze
 ├── silver
 ├── gold
@@ -145,8 +145,8 @@ nectare
 The ML assets include:
 
 ```text
-nectare.ml.readmission_features
-nectare.ml.readmission_model
+netcareaidatabricks.ml.readmission_features
+netcareaidatabricks.ml.readmission_model
 ```
 
 ## 6. ML lifecycle and Phase 6 governance
@@ -324,6 +324,49 @@ The current single-node cluster is therefore a **validation configuration** rath
 
 The key engineering conclusion is that the observed eight-minute wall-clock runtime is primarily **platform startup overhead**, not evidence that the model-training algorithm is computationally expensive.
 
+### GCP infrastructure resilience and capacity-aware compute placement
+
+Cloud infrastructure failures must be distinguished from application and model failures. During Phase 6 validation, a Databricks job reached cluster provisioning but failed before notebook execution because Google Cloud could not allocate the requested VM in the selected zone:
+
+```text
+GCP_INSUFFICIENT_CAPACITY
+ZONE_RESOURCE_POOL_EXHAUSTED
+The zone us-central1-f does not have enough resources available
+```
+
+This is a **cloud-capacity failure**, not a Python, data, MLflow, model-quality or Unity Catalog failure. Databricks documents `GCP_INSUFFICIENT_CAPACITY` as a stockout condition and recommends changing the availability zone or instance type and enabling flexible node types where supported. citeturn0search0turn0search1
+
+The training job therefore avoids unnecessarily pinning the validation compute to a single GCP zone:
+
+```yaml
+new_cluster:
+  node_type_id: "n2-standard-4"
+  gcp_attributes:
+    zone_id: AUTO
+```
+
+Using `AUTO` allows Databricks to select an available zone rather than permanently constraining the job to `us-central1-f`. Databricks also documents high-availability zone placement as a way to reduce the probability of single-zone capacity issues. citeturn0search4
+
+Flexible node types provide an additional resilience mechanism by allowing compatible alternative instance types when the preferred type is unavailable. Databricks recommends keeping flexible node types enabled unless a workload has a strict requirement for a specific instance type. citeturn0search0
+
+For this project, the resilience strategy is therefore:
+
+```text
+Databricks Job
+     ↓
+Capacity-aware zone placement
+     ↓
+AUTO availability zone
+     ↓
+Flexible node types where supported
+     ↓
+Cluster provisioning
+     ↓
+Training workload
+```
+
+This is particularly important for production workloads because a correct application cannot run if its compute infrastructure cannot be provisioned. Infrastructure resilience is therefore treated as a separate acceptance dimension from ML correctness.
+
 ### Repeated DEV validation runs
 
 Repeated successful runs strengthen the conclusion that the platform path is stable rather than the result of a one-off successful execution.
@@ -335,9 +378,11 @@ Recorded successful Phase 6 DEV runs include:
 | First corrected run | 15:26:16 | 15:34:42 | 8m 26s | `TERMINATED SUCCESS` |
 | Second corrected run | 15:41:52 | 15:52:10 | 10m 18s | `TERMINATED SUCCESS` |
 
-The variation in total duration further demonstrates that wall-clock time is dominated by Databricks environment and cluster lifecycle overhead rather than deterministic model-training complexity. Both executions reached successful completion through the same GCP/Databricks training path.
+A later validation attempt exposed a separate infrastructure capacity issue in `us-central1-f`. That failure is documented above and resulted in a capacity-aware placement change rather than a change to the ML pipeline.
 
-This is an important engineering distinction: **successful repeated execution is a reliability signal, while wall-clock runtime in an ephemeral DEV job is not a useful measure of the underlying model's computational cost.**
+The variation in total duration demonstrates that wall-clock time is dominated by Databricks environment and cluster lifecycle overhead rather than deterministic model-training complexity. Successful executions reaching the training path provide a reliability signal, while capacity failures provide evidence about infrastructure resilience requirements.
+
+This is an important engineering distinction: **application correctness, model quality, execution reliability and infrastructure availability are separate acceptance dimensions.**
 
 Actual workspace deployment remains environment-dependent. The repository contains the deployment definitions, but a real deployment requires the target GCP/Databricks workspace and authenticated deployment configuration.
 
@@ -516,7 +561,7 @@ Actual production-grade workflow hardening remains pending.
 
 **Status: FOUNDATION COMPLETE**
 
-- `nectare` catalog design
+- `netcareaidatabricks` catalog design
 - Bronze/Silver/Gold/ML schemas
 - governance SQL
 - least-privilege grant templates
@@ -542,121 +587,156 @@ Completed/validated foundations:
 - correction of missing recall calculation in model evaluation
 - successful DEV Databricks training execution after the recall fix
 - repeated successful DEV Databricks executions confirming training-path stability
+- capacity-aware GCP zone placement change after `GCP_INSUFFICIENT_CAPACITY` validation failure
 
 Current validation:
 
 - corrected training code is deployed through the Databricks Bundle;
-- the DEV run completed successfully after training, evaluation and quality-gate validation;
-- a second corrected DEV run also completed successfully;
-- repeated success confirms the infrastructure/package/data-access/training path is stable across executions;
-- the quality gate remains strict and will reject a genuinely underperforming candidate.
+- the DEV training path has successfully reached training, evaluation and quality-gate completion;
+- GCS access is configured for the Databricks compute service account;
+- the job cluster is Unity Catalog compatible through `USER_ISOLATION`;
+- the training job now uses `AUTO` GCP zone placement to reduce single-zone capacity failures;
+- the remaining Phase 6 acceptance criterion is successful end-to-end Unity Catalog model registration and `champion` alias promotion on a successfully provisioned run.
 
-Remaining Phase 6 work: integrate the full candidate registration/promotion flow with the Databricks workspace and validate it end-to-end against the Unity Catalog environment.
-
-### Phase 7 — CI/CD with GitHub Actions + Databricks
+### Phase 7 — Databricks Model Serving
 
 **Status: NEXT**
 
-```text
-GitHub
-  ↓
-GitHub Actions
-  ↓
-Quality Gates
-  ↓
-Databricks Bundle
-  ↓
-DEV
-  ↓
-STAGING
-  ↓
-PRODUCTION
-```
+- production endpoint
+- serving input/output contract
+- authentication
+- health checks
+- latency testing
+- rollback
 
-### Phase 8 — Production Model Serving
+### Phase 8 — FastAPI + Cloud Run
 
 **Status: PENDING**
 
-Deploy approved Unity Catalog model versions through Databricks Model Serving.
+- API service
+- containerization
+- Cloud Run deployment
+- model-serving integration
 
-### Phase 9 — Integration Layer
-
-**Status: PENDING**
-
-Build the GCP API Gateway → Cloud Run/FastAPI → Databricks Serving integration.
-
-### Phase 10 — Security and Secrets
+### Phase 9 — GCP API Gateway
 
 **Status: PENDING**
 
-Implement production IAM, service accounts, Secret Manager and deployment secret handling.
+- API gateway
+- authentication
+- routing
+- rate limiting
 
-### Phase 11 — Monitoring and Observability
-
-**Status: PENDING**
-
-Implement infrastructure, data, model and outcome monitoring.
-
-### Phase 12 — Drift Detection and Retraining
+### Phase 10 — Monitoring and Drift
 
 **Status: PENDING**
 
-Automate drift detection, retraining, validation and governed model promotion.
+- data drift
+- prediction drift
+- model performance
+- alerting
+- Cloud Monitoring integration
 
-### Phase 13 — Production Model Release Strategy
+### Phase 11 — Automated Retraining
 
 **Status: PENDING**
 
-Implement staged rollout, monitoring gates and rollback to the previous approved model.
+- scheduled retraining
+- trigger-based retraining
+- model comparison
+- automatic candidate rejection
+
+### Phase 12 — Production CI/CD
+
+**Status: PENDING**
+
+- GitHub Actions
+- staging deployment
+- production promotion
+- infrastructure deployment
+- automated rollback
+
+### Phase 13 — Production Hardening
+
+**Status: PENDING**
+
+- load testing
+- security testing
+- failure recovery
+- disaster recovery
+- cost optimization
+- operational documentation
 
 ## 17. Current engineering state
 
-**Current phase: Phase 6 — Model Registry and Promotion.**
+The project is intentionally being built **phase-by-phase with explicit acceptance criteria**.
 
-The repository is intentionally being advanced phase-by-phase. Before moving to the next phase, the current phase must be implemented, tested and documented.
+The repository should not claim production readiness merely because code has been implemented.
 
-### Source of truth
+A phase is marked **COMPLETE** only when its acceptance criteria have been implemented and validated in the relevant target environment.
 
-**GitHub `main` is the source of truth.** The development workflow is:
+The current position is:
+
+```text
+Phase 1  → COMPLETE
+Phase 2  → PARTIAL
+Phase 3  → PARTIAL
+Phase 4  → PARTIAL
+Phase 5  → FOUNDATION COMPLETE
+Phase 6  → IN PROGRESS  ← CURRENT
+Phase 7  → NEXT
+Phase 8  → PENDING
+Phase 9  → PENDING
+Phase 10 → PENDING
+Phase 11 → PENDING
+Phase 12 → PENDING
+Phase 13 → PENDING
+```
+
+This is deliberate engineering discipline, not a deficiency in the implementation. It keeps the project honest about what has been built, what has been integrated, and what has actually been verified.
+
+## 18. Source of truth
+
+GitHub `main` is the source of truth for the project.
+
+The development workflow is:
 
 ```text
 Inspect GitHub
-    ↓
-Implement on GitHub
-    ↓
-Update README / architecture documentation
-    ↓
-CI verification
-    ↓
-User pulls main locally
-    ↓
-User runs local verification
-    ↓
-Continue to next phase
+      ↓
+Make the smallest clean change
+      ↓
+Commit to GitHub
+      ↓
+Pull locally
+      ↓
+Run tests / validation
+      ↓
+Validate target environment
+      ↓
+Document evidence
+      ↓
+Continue to next acceptance criterion
 ```
 
-Do not introduce Azure resources, Azure deployment instructions or Azure-specific Databricks architecture into this repository. The target cloud architecture is **GCP + Databricks on GCP**.
-
-## 18. Environment information required for cloud validation
-
-When the repository implementation is ready for actual Databricks/GCP deployment validation, configure the environment with the appropriate authenticated GCP and Databricks credentials and workspace settings. Never commit credentials to the repository.
+The local working tree and GitHub repository should remain synchronized throughout development.
 
 ## 19. Production ML engineering approach
 
-This project deliberately treats each phase as an **engineering contract**, not simply a collection of implemented files. A phase is only considered complete when its implementation, tests, integration behavior and operational evidence satisfy its acceptance criteria.
+This project deliberately follows a verification-first engineering process rather than treating implementation as completion.
 
-This approach is valuable for production ML engineering for several reasons:
+### Why this matters
 
-1. **Prevents false completion** — partially implemented infrastructure is explicitly recorded as partial rather than being presented as production-ready.
-2. **Makes integration failures visible early** — cloud permissions, compute configuration, registry behavior and deployment assumptions are validated before the system depends on them downstream.
-3. **Preserves engineering traceability** — code changes, tests, deployment configuration and README evidence remain aligned in GitHub.
-4. **Encourages reproducibility** — repeated execution is used to distinguish a reliable workflow from a one-off successful run.
-5. **Protects model quality** — quality gates remain strict; infrastructure failures are fixed rather than hidden by weakening acceptance criteria.
-6. **Separates implementation from validation** — having code for a capability does not automatically mean that the capability works in the target production environment.
-7. **Supports controlled progression** — later phases build on verified foundations instead of accumulating untested assumptions.
-8. **Improves operational readiness** — production ML requires more than model accuracy; it requires governed data, secure compute, reproducible deployment, observability, rollback and lifecycle controls.
+1. **Prevents false completion** — a feature can exist in code while still failing in its target environment.
+2. **Makes integration failures visible early** — GCS permissions, Databricks compute configuration, Unity Catalog access and MLflow integration are validated before production claims are made.
+3. **Preserves engineering traceability** — implementation, test evidence, integration evidence and deployment evidence remain distinguishable.
+4. **Encourages reproducibility** — repeated execution is used to verify that a workflow is not succeeding only by chance.
+5. **Protects model quality** — quality gates remain strict even when an earlier failure is caused by an implementation defect.
+6. **Separates implementation from validation** — code can be technically correct while the surrounding infrastructure is still incomplete.
+7. **Supports controlled progression** — each phase has explicit acceptance criteria before the next phase becomes the primary focus.
+8. **Improves operational readiness** — failures such as cloud capacity exhaustion are treated as engineering signals that should influence infrastructure design, not as reasons to hide or bypass validation.
 
-The practical principle is:
+### Acceptance principle
 
 ```text
 Implement
@@ -674,6 +754,6 @@ Document the result
 Only then mark the phase complete
 ```
 
-This is intentionally slower than declaring a feature complete as soon as the code exists, but it produces a much stronger production engineering result. It reduces the risk of discovering late in the project that an earlier supposedly completed phase does not actually work when connected to the real cloud platform.
+> **“DONE” means verified, not merely implemented.**
 
-For this repository, **"DONE" means verified, not merely implemented.**
+This approach is particularly important for ML systems because correctness spans more than model code. Data access, preprocessing consistency, model quality, registry governance, compute availability, serving infrastructure, security, monitoring and deployment all contribute to whether the system is actually production-ready.
