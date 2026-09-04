@@ -19,7 +19,6 @@ from mlflow.models import infer_signature
 from src.config import settings
 from src.serving.mlflow_model import ReadmissionServingModel
 
-
 MLFLOW_SERVING_REQUIREMENTS = [
     "mlflow==2.13.1",
     "pandas>=2.0.0",
@@ -90,9 +89,7 @@ def register_model(
                 pip_requirements=MLFLOW_SERVING_REQUIREMENTS,
                 infer_code_paths=True,
                 signature=signature,
-                input_example=serving_input.head(2)
-                if hasattr(serving_input, "head")
-                else None,
+                input_example=serving_input.head(2) if hasattr(serving_input, "head") else None,
                 registered_model_name=registered_model_name,
             )
         else:
