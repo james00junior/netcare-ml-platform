@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import joblib
 import mlflow
+from mlflow.exceptions import MlflowException
 from mlflow.tracking import MlflowClient
 import numpy as np
 import pandas as pd
@@ -69,7 +70,7 @@ class ReadmissionPredictor:
             experiment = self.client.get_experiment_by_name(experiment_name)
             if experiment is not None:
                 self.experiment_id = experiment.experiment_id
-        except Exception:
+        except (MlflowException, ValueError, TypeError):
             self.experiment_id = None
 
     def _prepare_features(self, records: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -108,7 +109,7 @@ class ReadmissionPredictor:
                 mlflow.log_metric("prediction_count", len(labels))
                 mlflow.log_metric("mean_predicted_probability", float(probabilities.mean()))
                 mlflow.log_metric("predicted_positive_rate", float(labels.mean()))
-        except Exception as mlflow_err:
+        except (MlflowException, ValueError, TypeError) as mlflow_err:
             print(f"MLflow Logging Failed: {mlflow_err}")
 
     def predict(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
