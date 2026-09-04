@@ -1,37 +1,30 @@
--- Phase 5: Unity Catalog governance bootstrap
+-- Phase 5: Unity Catalog schema bootstrap
 --
--- GCP / Databricks namespace:
---   nectare.bronze
---   nectare.silver
---   nectare.gold
---   nectare.ml
+-- The Databricks workspace already provides the managed catalog:
+--   netcareaidatabricks
 --
--- Run this with a Unity Catalog-enabled Databricks SQL warehouse or
--- Unity Catalog-compatible compute using an identity that has the required
--- catalog/schema privileges. Storage credentials and external locations are
--- intentionally deployment-specific and are not hard-coded here.
+-- This script deliberately does NOT create the catalog. Catalog provisioning
+-- is an environment-level administration concern. The script creates the
+-- application schemas required by the platform inside the verified catalog.
 
-CREATE CATALOG IF NOT EXISTS nectare
-COMMENT 'Netcare ML platform governed data and machine learning assets';
-
-CREATE SCHEMA IF NOT EXISTS nectare.bronze
+CREATE SCHEMA IF NOT EXISTS netcareaidatabricks.bronze
 COMMENT 'Raw ingested hospital and source-system data';
 
-CREATE SCHEMA IF NOT EXISTS nectare.silver
+CREATE SCHEMA IF NOT EXISTS netcareaidatabricks.silver
 COMMENT 'Validated and standardised patient encounter data';
 
-CREATE SCHEMA IF NOT EXISTS nectare.gold
+CREATE SCHEMA IF NOT EXISTS netcareaidatabricks.gold
 COMMENT 'Analytics-ready features and business aggregates';
 
-CREATE SCHEMA IF NOT EXISTS nectare.ml
+CREATE SCHEMA IF NOT EXISTS netcareaidatabricks.ml
 COMMENT 'Machine learning feature tables and governed model assets';
 
 -- Expected governed assets introduced by subsequent phases:
--- nectare.bronze.hospital_readmissions
--- nectare.silver.patient_encounters
--- nectare.gold.readmission_features
--- nectare.ml.readmission_features
--- nectare.ml.readmission_model
+-- netcareaidatabricks.bronze.hospital_readmissions
+-- netcareaidatabricks.silver.patient_encounters
+-- netcareaidatabricks.gold.readmission_features
+-- netcareaidatabricks.ml.readmission_features
+-- netcareaidatabricks.ml.readmission_model
 
 -- NOTE:
 -- Production grants are deliberately managed separately from this bootstrap.
