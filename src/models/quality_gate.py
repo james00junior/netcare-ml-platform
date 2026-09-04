@@ -12,10 +12,13 @@ class QualityGateConfig:
     min_recall: float = 0.60
     require_data_validation: bool = True
     require_model_tests: bool = True
+    require_production_comparison: bool = True
 
 
 @dataclass(frozen=True)
 class QualityGateResult:
+    """Auditable result of candidate-model validation."""
+
     passed: bool
     checks: Dict[str, bool]
     reasons: tuple[str, ...]
@@ -41,11 +44,7 @@ def evaluate_quality_gate(
         "model_tests": (not config.require_model_tests) or model_tests_passed,
     }
 
-    reasons = tuple(
-        f"{name} failed"
-        for name, passed in checks.items()
-        if not passed
-    )
+    reasons = tuple(f"{name} failed" for name, passed in checks.items() if not passed)
 
     return QualityGateResult(
         passed=all(checks.values()),
@@ -86,17 +85,19 @@ def validate_candidate(
         config=config,
     )
 
-    if result.passed and not compare_with_production(
-        candidate_metrics, production_metrics
-    ):
-        return QualityGateResult(
-            passed=False,
-            checks={**result.checks, "better_than_production": False},
-            reasons=(*result.reasons, "candidate is worse than production"),
-        )
+    production_check = compare_with_production(candidate_metrics, production_metrics)
+    if config.require_production_comparison and production_metrics is not None:
+        production_check = compare_with_production(candidate_metrics, production_metrics)
+    else:
+        production_check = True
+
+    checks = {**result.checks, "better_than_production": production_check}
+    reasons = result.reasons
+    if not production_check:
+        reasons = (*reasons, "candidate is worse than production")
 
     return QualityGateResult(
-        passed=result.passed,
-        checks={**result.checks, "better_than_production": True},
-        reasons=result.reasons,
+        passed=result.passed and production_check,
+        checks=checks,
+        reasons=reasons,
     )
