@@ -50,6 +50,7 @@ def main() -> None:
         y_train,
         y_test,
         save_path=str(artifacts / "baseline_model_predictions.csv"),
+        preprocessor=preprocessor,
     )
 
     # 4. HistGradientBoosting
@@ -81,15 +82,17 @@ def main() -> None:
         metrics_df["model"].str.contains("Logistic", na=False), "model"
     ] = "Logistic Regression (Baseline)"
 
-    print("\n" + metrics_df[
-        ["model", "accuracy", "precision", "recall", "f1_score", "roc_auc"]
-    ].to_string(index=False))
+    print(
+        "\n" + metrics_df[
+            ["model", "accuracy", "precision", "recall", "f1_score", "roc_auc"]
+        ].to_string(index=False)
+    )
 
     print("\n" + "=" * 60)
     print("PIPELINE COMPLETE")
     print("=" * 60)
     print(f"Artefacts written to: {artifacts.resolve()}")
-    print("  - baseline_model_predictions.csv / .joblib")
+    print("  - baseline_model_predictions.csv / .joblib / _preprocessor.joblib")
     print("  - gbdt_model_predictions.csv / .joblib")
     print("  - evaluation_metrics_summary.csv")
     print("  - roc_curve.png / precision_recall_curve.png / confusion_matrix*.png")
