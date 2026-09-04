@@ -14,7 +14,7 @@ variables:
     default: /Shared/netcare-readmission
   registered_model_name:
     description: Unity Catalog registered model name
-    default: netcareaidatabricks.ml.readmission_model
+    default: netcareaidatabricks.default.readmission_model
 
 artifacts:
   default:
