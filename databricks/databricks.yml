@@ -22,14 +22,13 @@ sync:
     - ../notebooks/**
 
 # Each target represents a separate Databricks deployment environment.
-# The workspace host must be supplied through the Databricks CLI/GitHub Actions
-# environment; credentials are never stored in this repository.
+# DEV is pinned to the validated GCP workspace. Credentials remain outside Git.
 targets:
   dev:
     mode: development
     default: true
     workspace:
-      host: ${DATABRICKS_HOST}
+      host: https://8259552034754034.4.gcp.databricks.com
     variables:
       catalog_name: nectare
 
