@@ -13,8 +13,7 @@ from pathlib import Path
 
 from src.data.ingestion import load_raw_data
 from src.data.validation import run_data_quality_checks
-from src.features.build_features import build_feature_matrix
-from src.data.preprocessing import train_test_split_data
+from src.data.preprocessing import prepare_train_test_data
 from src.models.train_baseline import run_baseline_training
 from src.models.train_gbdt import run_gbdt_training
 from src.models.evaluate import evaluate_both_models
@@ -36,9 +35,8 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("STEP 2 – Feature engineering + train/test split")
     print("=" * 60)
-    X, y = build_feature_matrix(df)
-    X_train, X_test, y_train, y_test = train_test_split_data(X, y)
-    print(f"Features: {X.shape[1]}")
+    preprocessor, X_train, X_test, y_train, y_test = prepare_train_test_data(df)
+    print(f"Features: {X_train.shape[1]}")
     print(f"Train: {X_train.shape[0]} rows | Test: {X_test.shape[0]} rows")
     print(f"Target rate – train: {y_train.mean():.3f} | test: {y_test.mean():.3f}")
 
