@@ -1,12 +1,12 @@
 # Netcare ML Platform
 
-Production ML platform for **30-day hospital readmission prediction**, designed exclusively for **Google Cloud Platform (GCP)** with **Databricks on GCP**.
+Production-oriented ML platform for **30-day hospital readmission prediction**, designed exclusively for **Google Cloud Platform (GCP)** with **Databricks on GCP**.
 
 > **Platform constraint:** Azure is not part of this architecture or implementation. All cloud, data, ML lifecycle, serving and CI/CD decisions in this repository target GCP + Databricks on GCP.
 
 ## 1. Platform objective
 
-The platform turns hospital encounter data into a governed, production-ready machine-learning service that can:
+The platform turns hospital encounter data into a governed machine-learning service that can:
 
 - ingest and validate hospital data;
 - build leakage-safe ML features;
@@ -77,20 +77,22 @@ Monitoring / Logging / Security span all layers.
 | Layer | Technology | Responsibility |
 |---|---|---|
 | Cloud | **GCP** | Primary cloud platform |
-| Data lake | **Google Cloud Storage** | Raw and curated data storage |
-| Data engineering | **Databricks on GCP** | Distributed processing and orchestration |
+| Data lake | **Google Cloud Storage** | Durable raw and curated data storage |
+| Data engineering | **Databricks on GCP** | Processing and orchestration |
 | Storage format | **Delta Lake** | Reliable analytical tables |
 | Architecture | **Bronze / Silver / Gold** | Data quality and transformation boundaries |
-| Governance | **Unity Catalog** | Catalogs, schemas, permissions, lineage and ML assets |
+| Governance | **Unity Catalog** | Data/model governance, permissions and lineage |
 | Experiment tracking | **MLflow** | Parameters, metrics, artifacts and runs |
 | Model registry | **Unity Catalog + MLflow** | Governed model versions and aliases |
 | Training | **scikit-learn / HistGradientBoosting** | Readmission classification |
-| Serving | **Databricks Model Serving** | Managed production inference |
-| Integration | **FastAPI / Cloud Run** | Stable external API contract |
-| API gateway | **GCP API Gateway** | External API entry point and controls |
-| Secrets | **GCP Secret Manager** | Credential and secret management |
-| CI/CD | **GitHub Actions** | Quality gates and deployment automation |
+| Serving | **Databricks Model Serving** | Managed inference |
+| Integration | **FastAPI / Cloud Run** | External API integration |
+| API gateway | **GCP API Gateway** | External API entry point |
+| Secrets | **GCP Secret Manager** | Secret management |
+| CI/CD | **GitHub Actions** | Automated quality and deployment gates |
 | Observability | **Cloud Monitoring / Cloud Logging** | Infrastructure and application monitoring |
+
+The current ML workload is **CPU-only**. No GPU is required for the baseline readmission models because the workload is small tabular classification rather than GPU-oriented deep learning. Compute is therefore optimized around CPU capacity, memory, storage, reliability and cost rather than accelerator capacity.
 
 ## 4. Repository structure
 
@@ -111,7 +113,7 @@ netcare-ml-platform/
 │   └── sql/                 # Unity Catalog bootstrap/governance SQL
 ├── infrastructure/          # Cloud infrastructure definitions
 ├── tests/                   # Automated tests
-├── docs/                    # Architecture, governance and API docs
+├── docs/                    # Architecture and governance docs
 ├── .github/workflows/       # CI/CD pipelines
 └── run_pipeline.py          # Local end-to-end pipeline
 ```
@@ -120,11 +122,11 @@ netcare-ml-platform/
 
 ### Bronze
 
-Raw landing layer. Data is retained close to source format and is not used directly for model training.
+Raw landing layer. Source data is retained close to its original representation and is not used directly for model training.
 
 ### Silver
 
-Validated and standardized clinical/encounter data. Typical processing includes schema checks, missing-value handling, categorical normalization and duplicate detection.
+Validated and standardized encounter data. Processing includes schema validation, missing-value handling, categorical normalization and duplicate handling as appropriate.
 
 ### Gold
 
@@ -132,7 +134,7 @@ Analytics- and ML-ready datasets containing approved features for downstream tra
 
 ### Unity Catalog
 
-The current governance design uses the `netcareaidatabricks` catalog:
+The current Databricks governance design uses the verified catalog:
 
 ```text
 netcareaidatabricks
@@ -142,7 +144,7 @@ netcareaidatabricks
 └── ml
 ```
 
-The ML assets include:
+Planned ML assets include:
 
 ```text
 netcareaidatabricks.ml.readmission_features
@@ -185,32 +187,27 @@ The Phase 6 quality gate requires:
 - Recall ≥ 0.60;
 - data validation passed;
 - model tests passed;
-- candidate performance must not regress against the production model when production comparison is required.
+- no unacceptable regression against the production model when a production comparison is available.
 
-Registration and promotion are separate operations. A registered model version receives the `champion` Unity Catalog alias only after the promotion gate passes. Unity Catalog aliases are used instead of legacy MLflow model stages.
+Registration and promotion remain separate governance operations. The implementation uses Unity Catalog aliases rather than legacy MLflow model stages.
 
-### Recall threshold and current remediation
+### Quality-gate failure and remediation
 
-Recall is a deliberate quality constraint because the readmission use case must avoid allowing a candidate model with inadequate detection of positive readmission cases into the governed promotion path.
-
-During the first Databricks Phase 6 execution, the quality gate reported:
+The first Databricks candidate execution reached the quality gate and reported:
 
 ```text
 Candidate rejected by Phase 6 quality gate: ('recall failed',)
 ```
 
-The initial failure was caused by an implementation defect: the training helpers logged accuracy and ROC-AUC but did not calculate the `recall` metric. The quality gate therefore treated the missing recall value as `0.0` and correctly rejected the candidate.
+Investigation showed that this was **not a model-quality failure**. Both training helpers were returning accuracy and ROC-AUC but had omitted recall from the metric dictionary. The strict quality gate correctly treated the missing metric as unacceptable.
 
-This has now been fixed in both training paths. Logistic Regression and HistGradientBoosting evaluation now explicitly calculate recall using the test predictions and return it with the candidate metrics. The quality gate itself has **not** been weakened.
+The engineering response was to fix the training/evaluation implementation rather than weaken the gate. Both Logistic Regression and HistGradientBoosting now explicitly calculate recall from test predictions and return it with candidate metrics.
 
-The corrected Databricks execution subsequently completed successfully, confirming that the candidate now reaches and passes the Phase 6 quality gate with recall available to the evaluation logic.
+After that remediation, the Databricks training path completed successfully and the quality gate was reached with the required recall metric available.
 
-The previously measured local development results remain above the threshold:
+This produced an important engineering lesson:
 
-- Logistic Regression recall: **0.692**
-- HistGradientBoosting recall: **0.628**
-
-These are development/assessment results and must not be interpreted as production clinical performance claims.
+> **A failed quality gate should first trigger investigation of the evaluation implementation and evidence, not relaxation of the acceptance threshold.**
 
 ## 7. Current model baseline
 
@@ -221,7 +218,7 @@ The leakage-safe local pipeline currently evaluates:
 | Logistic Regression | 0.653 | 0.710 | 0.692 | 0.509 |
 | HistGradientBoosting | 0.713 | 0.711 | 0.628 | 0.533 |
 
-These are development/assessment results on the supplied dataset, **not production clinical performance claims**.
+These are development/assessment results on the supplied dataset and **must not be interpreted as production clinical performance claims**.
 
 ## 8. Development, staging and production
 
@@ -241,7 +238,7 @@ STAGING
 PRODUCTION
 ```
 
-Environment-specific configuration must be supplied through deployment configuration and secret management. Credentials must never be committed to the repository.
+Environment-specific configuration belongs in deployment configuration and secret management. Credentials must never be committed to the repository.
 
 ## 9. Production inference architecture
 
@@ -267,13 +264,13 @@ External API contract:
 POST /v1/predictions/readmission
 ```
 
-The final production contract will be aligned with the actual Databricks serving input schema before deployment.
+The final serving contract will be aligned with the actual Databricks serving input schema before production deployment.
 
 ## 10. Databricks on GCP
 
 Databricks resources are managed as code through the Declarative Automation Bundle under `databricks/`.
 
-The current environment model is:
+The environment model is:
 
 ```text
                  databricks.yml
@@ -289,104 +286,245 @@ The current environment model is:
               Training / Serving
 ```
 
-The Databricks training notebook is aligned to the GCP-only architecture and the current leakage-safe training pipeline. It accepts environment-specific catalog, experiment and registered-model parameters from the Databricks Bundle.
+The training notebook accepts environment-specific catalog, experiment, registered-model and GCS data-path parameters from the Bundle.
 
-The DEV training job currently uses a small single-node cluster for cost-effective Phase 6 validation. This is a validation configuration, not a claim that production workloads should always use a single node.
+### Compute decision: CPU, not GPU
+
+The baseline workload is tabular classification using Logistic Regression and HistGradientBoosting. The dataset is small and the models are CPU-efficient. GPU infrastructure would add cost and operational complexity without providing a justified benefit for this workload.
+
+The engineering decision is therefore:
+
+```text
+Small tabular ML workload
+          ↓
+CPU compute
+          ↓
+Small / cost-controlled cluster
+          ↓
+Scale only when workload requirements justify it
+```
+
+This does **not** mean production must always use a single-node cluster. Production compute should be selected according to dataset size, concurrency, latency, reliability and cost requirements.
 
 ### Databricks runtime versus model-training time
 
-The observed DEV job runtime must be interpreted carefully. A successful Phase 6 Databricks run took approximately **8 minutes overall**, but this does **not** mean the simple readmission models required eight minutes to train.
+A successful DEV run took approximately eight minutes wall-clock time. That duration should not be interpreted as model-training time.
 
-The majority of the runtime is infrastructure and environment startup overhead, including:
+The observed runtime includes infrastructure and environment lifecycle overhead such as:
 
-1. Databricks cluster provisioning;
+1. cluster provisioning;
 2. Databricks runtime startup;
 3. Spark initialization;
-4. installation of the project Python wheel and dependencies;
+4. project wheel installation;
 5. notebook/task initialization;
 6. cloud authentication and data-access setup.
 
-The actual model training and candidate evaluation are lightweight and complete in a small fraction of the total job duration. The current dataset is also small, with the GCS CSV being approximately 154 KB.
-
-This distinction is important when evaluating platform performance:
+The actual baseline model training and candidate evaluation are lightweight relative to cluster startup.
 
 ```text
 Databricks Job Runtime
         │
-        ├── Cluster provisioning / startup  ← dominant DEV overhead
+        ├── Cluster provisioning / startup
         ├── Runtime initialization
         ├── Dependency / wheel installation
         ├── Notebook initialization
-        └── ML execution                     ← lightweight; seconds-scale
+        └── ML execution                 ← lightweight
 ```
 
-The current single-node cluster is therefore a **validation configuration** rather than a performance benchmark. For production, compute strategy should be selected according to workload size, concurrency, latency requirements and cost. Appropriate approaches may include managed job compute, scheduled workloads, reuse of appropriately configured compute, or other Databricks compute strategies that avoid unnecessary startup overhead for latency-sensitive workloads.
+The current single-node configuration is therefore a **DEV validation configuration**, not a production performance benchmark.
 
-The key engineering conclusion is that the observed eight-minute wall-clock runtime is primarily **platform startup overhead**, not evidence that the model-training algorithm is computationally expensive.
+## 11. Infrastructure engineering decisions and lessons learned
 
-### GCP infrastructure resilience and capacity-aware compute placement
+This section records the infrastructure decisions made during implementation and the improvements that resulted from real target-environment validation.
 
-Cloud infrastructure failures must be distinguished from application and model failures. During Phase 6 validation, a Databricks job reached cluster provisioning but failed before notebook execution because Google Cloud could not allocate the requested VM in the selected zone:
+### 11.1 Initial decision: small single-node CPU compute
+
+The first implementation deliberately used a small single-node CPU cluster because:
+
+- the dataset is small;
+- the baseline models are CPU-oriented;
+- distributed Spark execution is not required for the current training workload;
+- minimizing DEV cost and startup complexity is reasonable during assessment development.
+
+This remains a valid **DEV workload decision**.
+
+The mistake was not choosing CPU or single-node compute. The initial configuration did not sufficiently account for **cloud-capacity resilience**.
+
+### 11.2 What failed
+
+A Databricks training attempt failed during cluster provisioning with:
 
 ```text
 GCP_INSUFFICIENT_CAPACITY
 ZONE_RESOURCE_POOL_EXHAUSTED
-The zone us-central1-f does not have enough resources available
 ```
 
-This is a **cloud-capacity failure**, not a Python, data, MLflow, model-quality or Unity Catalog failure. Databricks documents `GCP_INSUFFICIENT_CAPACITY` as a stockout condition and recommends changing the availability zone or instance type and enabling flexible node types where supported. citeturn0search0turn0search1
+The job failed before notebook execution. Therefore the failure was infrastructure capacity, not:
 
-The training job therefore avoids unnecessarily pinning the validation compute to a single GCP zone:
+- Python code;
+- package imports;
+- GCS permissions;
+- data validation;
+- preprocessing;
+- model training;
+- MLflow;
+- quality-gate logic;
+- Unity Catalog.
+
+Databricks documents `GCP_INSUFFICIENT_CAPACITY` as a GCP capacity/stockout condition and identifies changing instance type or availability-zone strategy and using flexible node types as resilience measures. [D1]
+
+### 11.3 Why `AUTO` alone was insufficient
+
+The first response was to replace a fixed zone with:
 
 ```yaml
-new_cluster:
-  node_type_id: "n2-standard-4"
-  gcp_attributes:
-    zone_id: AUTO
+gcp_attributes:
+  zone_id: AUTO
 ```
 
-Using `AUTO` allows Databricks to select an available zone rather than permanently constraining the job to `us-central1-f`. Databricks also documents high-availability zone placement as a way to reduce the probability of single-zone capacity issues. citeturn0search4
+This was useful because it removed a hard dependency on one specific zone. However, `AUTO` does **not** guarantee capacity. It can select a zone that is still capacity-constrained for the requested VM type. [D2]
 
-Flexible node types provide an additional resilience mechanism by allowing compatible alternative instance types when the preferred type is unavailable. Databricks recommends keeping flexible node types enabled unless a workload has a strict requirement for a specific instance type. citeturn0search0
+That happened in practice: the subsequent attempt was placed in `us-central1-c` and again failed with GCP capacity exhaustion.
 
-For this project, the resilience strategy is therefore:
+The lesson is:
+
+> **Zone flexibility and instance-type flexibility solve different parts of the capacity problem.**
+
+### 11.4 Improved decision: flexible CPU node types
+
+The job now uses a preferred CPU instance type plus compatible alternatives through Databricks flexible node-type configuration:
+
+```yaml
+node_type_id: "c4-standard-4"
+driver_node_type_id: "c4-standard-4"
+driver_node_type_flexibility:
+  alternate_node_type_ids:
+    - "c3-standard-4"
+    - "c3d-standard-4"
+    - "n4-standard-4"
+    - "c4d-standard-4"
+```
+
+The purpose is not to make the cluster larger. The purpose is to increase the probability that a **small CPU workload can obtain compatible compute capacity** without requiring a specific VM shape.
+
+Databricks supports flexible node types for GCP compute and exposes driver node flexibility in Declarative Automation Bundles. [D3] [D4]
+
+### 11.5 Region versus zone decision
+
+The architecture uses the **`us-central1` GCP region**. The exact availability zone does not need to be identical across every component. The important architectural decision is to keep latency-sensitive data and compute in an appropriate common region while allowing compute placement to vary between zones when that improves availability.
+
+For this platform:
 
 ```text
-Databricks Job
-     ↓
-Capacity-aware zone placement
-     ↓
-AUTO availability zone
-     ↓
-Flexible node types where supported
-     ↓
-Cluster provisioning
-     ↓
-Training workload
+GCP region: us-central1
+
+GCS: regional / region-aligned storage strategy
+Databricks compute: us-central1
+Compute zone: capacity-aware selection
 ```
 
-This is particularly important for production workloads because a correct application cannot run if its compute infrastructure cannot be provisioned. Infrastructure resilience is therefore treated as a separate acceptance dimension from ML correctness.
+A zone mismatch is therefore not itself an architectural failure. A rigid dependency on a capacity-constrained zone is the problem. Databricks documents both automatic zone placement and high-availability zone placement as supported GCP strategies. [D2]
 
-### Repeated DEV validation runs
+### 11.6 Why we did not solve capacity by adding GPUs
 
-Repeated successful runs strengthen the conclusion that the platform path is stable rather than the result of a one-off successful execution.
+The capacity failures did **not** indicate insufficient compute performance. They indicated that GCP could not provision the requested CPU VM.
 
-Recorded successful Phase 6 DEV runs include:
+Adding GPUs would therefore solve the wrong problem and increase cost and operational complexity.
+
+The correct response was:
+
+```text
+Capacity failure
+      ↓
+Diagnose provisioning layer
+      ↓
+Keep workload CPU-only
+      ↓
+Increase compatible CPU placement options
+      ↓
+Re-run target environment validation
+```
+
+### 11.7 Why we did not automatically increase cluster size
+
+A larger cluster is not inherently more resilient to stockouts. It can require more VM capacity and can therefore make provisioning harder.
+
+For the current small tabular workload, the engineering preference is:
+
+> **Use the minimum compute required by the workload, but remove unnecessary infrastructure rigidity.**
+
+Scaling out should happen when workload requirements justify it, not simply because a provisioning failure occurred.
+
+### 11.8 Engineering maturity lesson
+
+The most important improvement was methodological:
+
+```text
+Initial design assumption
+        ↓
+Target-environment execution
+        ↓
+Observed failure
+        ↓
+Layer-specific diagnosis
+        ↓
+Architecture decision update
+        ↓
+Targeted remediation
+        ↓
+Repeat validation
+```
+
+This is preferable to hiding infrastructure failures or repeatedly changing configuration without evidence.
+
+## 12. Repeated target-environment validation
+
+The implemented training path has been executed successfully multiple times after the evaluation defect was fixed.
+
+Recorded successful DEV runs include:
 
 | Run | Start | End | Wall-clock duration | Result |
 |---|---|---|---:|---|
 | First corrected run | 15:26:16 | 15:34:42 | 8m 26s | `TERMINATED SUCCESS` |
 | Second corrected run | 15:41:52 | 15:52:10 | 10m 18s | `TERMINATED SUCCESS` |
 
-A later validation attempt exposed a separate infrastructure capacity issue in `us-central1-f`. That failure is documented above and resulted in a capacity-aware placement change rather than a change to the ML pipeline.
+These executions demonstrate that the implemented data/training path can:
 
-The variation in total duration demonstrates that wall-clock time is dominated by Databricks environment and cluster lifecycle overhead rather than deterministic model-training complexity. Successful executions reaching the training path provide a reliability signal, while capacity failures provide evidence about infrastructure resilience requirements.
+- provision Databricks compute;
+- install the packaged project wheel;
+- import `src` correctly in the Databricks runtime;
+- access the GCS dataset;
+- validate and preprocess the data;
+- train candidate models;
+- calculate recall;
+- apply the strict quality gate;
+- complete successfully.
 
-This is an important engineering distinction: **application correctness, model quality, execution reliability and infrastructure availability are separate acceptance dimensions.**
+A later capacity failure occurred during cluster provisioning. That failure is an infrastructure acceptance issue and is documented separately rather than being incorrectly classified as an ML pipeline failure.
 
-Actual workspace deployment remains environment-dependent. The repository contains the deployment definitions, but a real deployment requires the target GCP/Databricks workspace and authenticated deployment configuration.
+## 13. Current acceptance status
 
-## 11. Security
+The current engineering state must distinguish **implemented and successfully executing stages** from the remaining integration acceptance criterion.
+
+```text
+Data ingestion / access       → RUNNING SUCCESSFULLY
+Preprocessing                 → RUNNING SUCCESSFULLY
+Model training                → RUNNING SUCCESSFULLY
+Evaluation                    → RUNNING SUCCESSFULLY
+Quality gate                  → RUNNING SUCCESSFULLY
+Databricks Bundle deployment  → RUNNING SUCCESSFULLY
+GCP compute access            → CONFIGURED
+GCS dataset access            → CONFIGURED
+
+Unity Catalog registration   → REMAINING ACCEPTANCE ITEM
+Unity Catalog champion alias → REMAINING ACCEPTANCE ITEM
+```
+
+**Phase 6 is not blocked by the ML pipeline.** The remaining acceptance item is to prove the full governed registry operation in the target Databricks Unity Catalog environment: create/register the model version successfully and assign the `champion` alias.
+
+No phase should be marked fully complete until its acceptance criteria have been demonstrated in the relevant target environment.
+
+## 14. Security
 
 Production security design:
 
@@ -395,9 +533,9 @@ Production security design:
 - Databricks permissions and Unity Catalog grants for data/model access;
 - no credentials or tokens committed to GitHub;
 - least-privilege access to Bronze, Silver, Gold and ML assets;
-- MLflow logging excludes raw patient input values from inference telemetry.
+- inference telemetry should avoid logging raw patient input values.
 
-## 12. Monitoring
+## 15. Monitoring
 
 ### Infrastructure
 
@@ -405,7 +543,8 @@ Production security design:
 - request/error rates
 - service availability
 - throughput
-- Cloud Monitoring and Cloud Logging
+- Cloud Monitoring
+- Cloud Logging
 
 ### Data
 
@@ -438,7 +577,7 @@ Join prediction + outcome
 Calculate production performance
 ```
 
-## 13. Retraining strategy
+## 16. Retraining strategy
 
 ```text
 Production Data
@@ -464,7 +603,7 @@ Deploy
 
 Retraining may be scheduled, triggered by significant drift, or triggered by availability of new outcome labels.
 
-## 14. Release and rollback strategy
+## 17. Release and rollback strategy
 
 The production model uses Unity Catalog aliases so that deployment targets a governed model reference rather than a hard-coded version.
 
@@ -475,18 +614,17 @@ Model v1 → 100% production
 
 Model v2 → candidate
 
-Model v2 → 10% traffic
-Model v1 → 90% traffic
+Model v2 → controlled rollout
+Model v1 → remaining traffic
 
-Model v2 → 50% traffic
-Model v1 → 50% traffic
+Model v2 → expanded rollout
 
 Model v2 → 100% traffic
 ```
 
 If the new model fails production checks, traffic can be returned to the previous approved model version.
 
-## 15. CI/CD
+## 18. CI/CD
 
 GitHub Actions is the source-controlled automation layer.
 
@@ -506,9 +644,9 @@ Pytest
 Coverage reporting
 ```
 
-Automated format-and-commit workflows are not part of the permanent CI design.
+CI should reject defects rather than automatically weakening tests or quality thresholds.
 
-## 16. Implementation roadmap
+## 19. Implementation roadmap
 
 ### Phase 1 — Production Data Science Pipeline
 
@@ -516,8 +654,8 @@ Automated format-and-commit workflows are not part of the permanent CI design.
 
 - leakage-safe preprocessing
 - train/test split
-- baseline model
-- HistGradientBoosting model
+- Logistic Regression baseline
+- HistGradientBoosting baseline
 - evaluation
 - persisted model artifacts
 - persisted fitted preprocessing
@@ -526,43 +664,45 @@ Automated format-and-commit workflows are not part of the permanent CI design.
 
 ### Phase 2 — MLflow Tracking and Registry
 
-**Status: PARTIAL**
+**Status: IMPLEMENTED / EXECUTION PATH VALIDATED**
 
 - experiment tracking foundations
 - model logging
 - registry integration foundations
 - Unity Catalog registry configuration
 
-Remaining work is integrated governed lifecycle validation.
+Remaining registry acceptance is tracked under Phase 6.
 
 ### Phase 3 — GCP Data Lake + Databricks Medallion
 
-**Status: PARTIAL**
+**Status: IMPLEMENTED / EXECUTION PATH VALIDATED**
 
 - GCS architecture
 - Bronze/Silver/Gold design
 - Databricks processing architecture
+- GCS dataset access from Databricks compute
 
-Actual cloud deployment and validation remain environment-dependent.
+Further production-scale data engineering remains a hardening concern rather than a current training-path blocker.
 
 ### Phase 4 — Databricks Workflows
 
-**Status: PARTIAL**
+**Status: IMPLEMENTED / EXECUTION PATH VALIDATED**
 
 - Databricks Bundle foundation
 - environment targets
 - training job resource
-- successful DEV cluster provisioning and notebook execution
-- GCS access configured through the Databricks compute service account
+- packaged Python wheel deployment
+- successful DEV notebook execution
+- GCS access configuration
 
-Actual production-grade workflow hardening remains pending.
+Further production workflow hardening remains pending.
 
 ### Phase 5 — Unity Catalog
 
 **Status: FOUNDATION COMPLETE**
 
-- `netcareaidatabricks` catalog design
-- Bronze/Silver/Gold/ML schemas
+- verified `netcareaidatabricks` catalog
+- Bronze/Silver/Gold/ML schema design
 - governance SQL
 - least-privilege grant templates
 - governance documentation
@@ -571,7 +711,7 @@ Actual production-grade workflow hardening remains pending.
 
 **Status: IN PROGRESS — CURRENT PHASE**
 
-Completed/validated foundations:
+Completed/validated:
 
 - quality gate implementation
 - candidate-vs-production comparison
@@ -584,19 +724,12 @@ Completed/validated foundations:
 - Databricks Bundle deployment
 - GCP IAM permission required for Databricks compute to read the training dataset
 - Databricks execution reaching candidate evaluation
-- correction of missing recall calculation in model evaluation
-- successful DEV Databricks training execution after the recall fix
-- repeated successful DEV Databricks executions confirming training-path stability
-- capacity-aware GCP zone placement change after `GCP_INSUFFICIENT_CAPACITY` validation failure
+- correction of missing recall calculation
+- successful DEV training execution after the recall fix
+- repeated successful DEV training executions
+- capacity-aware compute remediation after GCP stockout validation
 
-Current validation:
-
-- corrected training code is deployed through the Databricks Bundle;
-- the DEV training path has successfully reached training, evaluation and quality-gate completion;
-- GCS access is configured for the Databricks compute service account;
-- the job cluster is Unity Catalog compatible through `USER_ISOLATION`;
-- the training job now uses `AUTO` GCP zone placement to reduce single-zone capacity failures;
-- the remaining Phase 6 acceptance criterion is successful end-to-end Unity Catalog model registration and `champion` alias promotion on a successfully provisioned run.
+**Remaining acceptance criterion:** successfully register a model version in `netcareaidatabricks.ml` and assign the governed `champion` alias during a successful target-environment run.
 
 ### Phase 7 — Databricks Model Serving
 
@@ -667,74 +800,36 @@ Current validation:
 - cost optimization
 - operational documentation
 
-## 17. Current engineering state
+## 20. Engineering decision log
 
-The project is intentionally being built **phase-by-phase with explicit acceptance criteria**.
+| Decision / observation | Evidence | Engineering response |
+|---|---|---|
+| Baseline workload does not need GPUs | Small tabular classification workload | Use CPU-first infrastructure |
+| Single-node is sufficient for current DEV training workload | Lightweight models and small dataset | Keep small compute for DEV; do not confuse with production scaling strategy |
+| Databricks package import failed initially | `ModuleNotFoundError: No module named 'src'` | Package `src` as a wheel and install it through the Bundle |
+| Quality gate reported missing recall | Training metrics omitted recall | Fix evaluation metrics; keep strict quality gate unchanged |
+| GCS access failed from Databricks compute | Target environment required explicit object access | Grant the required service-account object-viewer permission |
+| Fixed zone caused stockout | `GCP_INSUFFICIENT_CAPACITY` / `ZONE_RESOURCE_POOL_EXHAUSTED` | Remove unnecessary fixed-zone dependency |
+| `AUTO` changed the selected zone but did not guarantee capacity | Subsequent stockout in another zone | Add flexible compatible CPU node types |
+| Adding GPUs would not address the failure | Failure occurred during CPU VM provisioning | Keep infrastructure CPU-only |
+| Increasing node count is not automatically a resilience solution | Larger clusters can require more capacity | Prefer minimal compute with greater placement flexibility |
+| Successful repeated executions matter | Two corrected DEV runs completed successfully | Use repeated target-environment validation as evidence |
+| Unity Catalog registration remains unproven | Training and quality gate succeed before registry acceptance | Focus next work on UC registration/version/alias validation |
 
-The repository should not claim production readiness merely because code has been implemented.
-
-A phase is marked **COMPLETE** only when its acceptance criteria have been implemented and validated in the relevant target environment.
-
-The current position is:
-
-```text
-Phase 1  → COMPLETE
-Phase 2  → PARTIAL
-Phase 3  → PARTIAL
-Phase 4  → PARTIAL
-Phase 5  → FOUNDATION COMPLETE
-Phase 6  → IN PROGRESS  ← CURRENT
-Phase 7  → NEXT
-Phase 8  → PENDING
-Phase 9  → PENDING
-Phase 10 → PENDING
-Phase 11 → PENDING
-Phase 12 → PENDING
-Phase 13 → PENDING
-```
-
-This is deliberate engineering discipline, not a deficiency in the implementation. It keeps the project honest about what has been built, what has been integrated, and what has actually been verified.
-
-## 18. Source of truth
-
-GitHub `main` is the source of truth for the project.
-
-The development workflow is:
-
-```text
-Inspect GitHub
-      ↓
-Make the smallest clean change
-      ↓
-Commit to GitHub
-      ↓
-Pull locally
-      ↓
-Run tests / validation
-      ↓
-Validate target environment
-      ↓
-Document evidence
-      ↓
-Continue to next acceptance criterion
-```
-
-The local working tree and GitHub repository should remain synchronized throughout development.
-
-## 19. Production ML engineering approach
+## 21. Verification-first engineering approach
 
 This project deliberately follows a verification-first engineering process rather than treating implementation as completion.
 
 ### Why this matters
 
-1. **Prevents false completion** — a feature can exist in code while still failing in its target environment.
-2. **Makes integration failures visible early** — GCS permissions, Databricks compute configuration, Unity Catalog access and MLflow integration are validated before production claims are made.
-3. **Preserves engineering traceability** — implementation, test evidence, integration evidence and deployment evidence remain distinguishable.
-4. **Encourages reproducibility** — repeated execution is used to verify that a workflow is not succeeding only by chance.
-5. **Protects model quality** — quality gates remain strict even when an earlier failure is caused by an implementation defect.
-6. **Separates implementation from validation** — code can be technically correct while the surrounding infrastructure is still incomplete.
-7. **Supports controlled progression** — each phase has explicit acceptance criteria before the next phase becomes the primary focus.
-8. **Improves operational readiness** — failures such as cloud capacity exhaustion are treated as engineering signals that should influence infrastructure design, not as reasons to hide or bypass validation.
+1. **Prevents false completion** — code can exist while its target environment still fails.
+2. **Makes integration failures visible** — GCS permissions, Databricks packaging, compute capacity and registry access are tested in context.
+3. **Preserves traceability** — implementation, test evidence and deployment evidence remain distinguishable.
+4. **Encourages reproducibility** — repeated executions strengthen confidence in the workflow.
+5. **Protects model quality** — quality thresholds remain strict when implementation defects are found.
+6. **Separates infrastructure from application failures** — a cluster stockout is not reported as an ML failure.
+7. **Supports controlled progression** — each phase has explicit acceptance criteria.
+8. **Improves architecture through evidence** — real failures become inputs to better engineering decisions.
 
 ### Acceptance principle
 
@@ -747,13 +842,90 @@ Integrate
    ↓
 Run in the target environment
    ↓
-Collect evidence
+Observe failures and evidence
    ↓
-Document the result
+Diagnose the correct layer
    ↓
-Only then mark the phase complete
+Make the smallest justified change
+   ↓
+Repeat validation
+   ↓
+Document the decision
+   ↓
+Only then mark the acceptance criterion complete
 ```
 
 > **“DONE” means verified, not merely implemented.**
 
-This approach is particularly important for ML systems because correctness spans more than model code. Data access, preprocessing consistency, model quality, registry governance, compute availability, serving infrastructure, security, monitoring and deployment all contribute to whether the system is actually production-ready.
+## 22. Source of truth and engineering workflow
+
+GitHub `main` is the source of truth for the project.
+
+The development workflow is:
+
+```text
+Inspect GitHub
+      ↓
+Identify the exact problem
+      ↓
+Make the smallest clean change
+      ↓
+Commit to GitHub
+      ↓
+Pull locally
+      ↓
+Run tests / validation
+      ↓
+Validate target environment
+      ↓
+Document evidence and decision
+      ↓
+Continue to the next acceptance criterion
+```
+
+The local working tree and GitHub repository should remain synchronized throughout development.
+
+## 23. References and evidence
+
+The references below use ordinary Markdown links so that they render correctly on GitHub. External references support architectural and platform claims; project-specific references record implementation and remediation evidence.
+
+### Official platform references
+
+- [D1 — Databricks: GCP cluster error codes](https://docs.databricks.com/gcp/en/compute/troubleshooting/cluster-error-codes) — capacity/stockout diagnosis and remediation guidance.
+- [D2 — Databricks: Configure compute on GCP](https://docs.databricks.com/gcp/en/compute/configure) — GCP availability-zone and compute configuration behaviour.
+- [D3 — Databricks: Flexible node types on GCP](https://docs.databricks.com/gcp/en/compute/instance-families) — flexible-node capacity resilience and compatible compute concepts.
+- [D4 — Databricks: Declarative Automation Bundles resource reference](https://docs.databricks.com/aws/en/dev-tools/bundles/resources) — Bundle resource configuration, including compute settings.
+- [G1 — Google Cloud Storage locations](https://cloud.google.com/storage/docs/locations) — regional storage and location considerations.
+- [M1 — MLflow Model Registry](https://mlflow.org/docs/latest/ml/model-registry/) — model registration and lifecycle concepts.
+- [U1 — Databricks Unity Catalog](https://docs.databricks.com/gcp/en/data-governance/unity-catalog/) — governance and catalog concepts.
+
+### Project implementation evidence
+
+- [E1 — Recall metric remediation commit](https://github.com/james00junior/netcare-ml-platform/commit/da20185f52ff29f27d3dba021c8b75ca3ca94c53) — adds explicit recall calculation to the baseline training path.
+- [E2 — HistGradientBoosting recall remediation commit](https://github.com/james00junior/netcare-ml-platform/commit/5cbde8f79b32a32a2b2dcc541d9994f91c19a53) — adds explicit recall calculation to the GBDT path.
+- [E3 — Databricks training notebook alignment](https://github.com/james00junior/netcare-ml-platform/commit/4d127e3db11be12f74a60ba22eb83e37a204296f) — aligns the Databricks training notebook with the governed promotion workflow.
+- [E4 — Databricks Bundle artifact-path fix](https://github.com/james00junior/netcare-ml-platform/commit/a84c00b05cf387966de989bcabdfcc270c8508d1) — fixes wheel build/source path handling.
+- [E5 — Unity Catalog catalog configuration](https://github.com/james00junior/netcare-ml-platform/commit/51bdaa1f4270c8aa0e643f554263433a10d35557) — aligns Bundle configuration with the verified `netcareaidatabricks` catalog.
+- [E6 — GCP flexible CPU fallback configuration](https://github.com/james00junior/netcare-ml-platform/commit/cdce69b0dea0a7ecb5871ca9032bfac75df86b2a) — adds preferred and alternate CPU node types for capacity resilience.
+
+### Verification evidence
+
+The current repository records successful target-environment executions and the infrastructure capacity incidents that informed the compute redesign. Databricks run URLs and timestamps are intentionally recorded in the engineering notes above so that the implementation history remains auditable without confusing infrastructure incidents with ML pipeline failures.
+
+## 24. Final engineering position
+
+The project has moved from a locally validated ML pipeline to a target-environment Databricks execution path with explicit governance, packaging, GCS access, quality gates and infrastructure-resilience decisions.
+
+The key lessons from implementation are not that the first configuration was perfect. The key lessons are that:
+
+- compute should match the workload;
+- GPU infrastructure is unnecessary for this baseline;
+- small DEV compute is appropriate when the workload is small;
+- infrastructure capacity must be designed separately from model performance;
+- `AUTO` zone selection is useful but not sufficient by itself;
+- compatible CPU flexibility is a better response to this capacity problem than adding unnecessary compute;
+- strict quality gates should be fixed at the evaluation layer when metrics are missing;
+- repeated target-environment execution is stronger evidence than local assumptions;
+- Unity Catalog registration and promotion must be demonstrated before Phase 6 is marked complete.
+
+The engineering objective is therefore not to pretend that every first decision was optimal. It is to make each decision **evidence-driven, testable, explainable and progressively more resilient**.
