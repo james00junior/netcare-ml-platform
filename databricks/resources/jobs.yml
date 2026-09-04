@@ -16,7 +16,6 @@ resources:
             node_type_id: "n2-standard-4"
             driver_node_type_id: "n2-standard-4"
             num_workers: 0
-            autotermination_minutes: 10
             spark_conf:
               spark.databricks.cluster.profile: singleNode
               spark.master: local[*]
