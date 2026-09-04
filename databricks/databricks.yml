@@ -20,11 +20,9 @@ artifacts:
   default:
     type: whl
     path: ..
-    build: |
-      rm -rf ../dist
-      python -m pip wheel .. --wheel-dir ../dist --no-deps
+    build: python -m pip wheel . --wheel-dir dist --no-deps
     files:
-      - source: ../dist/*.whl
+      - source: dist/*.whl
 
 sync:
   paths:
