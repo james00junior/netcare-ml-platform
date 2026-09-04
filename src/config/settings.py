@@ -26,11 +26,11 @@ class Settings(BaseSettings):
     # Model
     model_name: str = "readmission_xgboost"
     experiment_name: str = "netcare-readmission"
-    registered_model_name: str = "netcare-readmission-model"
+    registered_model_name: str = "nectare.ml.readmission_model"
 
-    # MLflow
+    # MLflow / Unity Catalog
     mlflow_tracking_uri: str = "databricks"
-    mlflow_registry_uri: str = "databricks"
+    mlflow_registry_uri: str = "databricks-uc"
 
     # API
     api_host: str = "0.0.0.0"
