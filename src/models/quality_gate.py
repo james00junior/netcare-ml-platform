@@ -85,11 +85,9 @@ def validate_candidate(
         config=config,
     )
 
-    production_check = compare_with_production(candidate_metrics, production_metrics)
+    production_check = True
     if config.require_production_comparison and production_metrics is not None:
         production_check = compare_with_production(candidate_metrics, production_metrics)
-    else:
-        production_check = True
 
     checks = {**result.checks, "better_than_production": production_check}
     reasons = result.reasons
