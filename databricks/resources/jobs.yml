@@ -15,3 +15,5 @@ resources:
               catalog_name: ${var.catalog_name}
               experiment_name: ${var.experiment_name}
               registered_model_name: ${var.registered_model_name}
+          libraries:
+            - whl: ../dist/*.whl
