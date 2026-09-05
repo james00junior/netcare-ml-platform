@@ -166,9 +166,44 @@ A failed deployment candidate is not discarded merely because a new failure is d
 
 A new model version should only be created when the model or training result intentionally changes.
 
+## Direct v8 inference validation
+
+The isolated candidate endpoint was invoked using the exact 28-field v8 model signature through the existing `DatabricksServingClient`. The inference request was sent to Databricks Model Serving; the model was not loaded or executed on the local Mac.
+
+Request validation:
+
+```text
+Field count: 28
+```
+
+Observed response:
+
+```text
+predicted_label: 0
+probability: 0.30573779349128066
+risk_tier: medium
+model_version: champion
+```
+
+The endpoint configuration independently establishes that the serving entity is model version `8` (`readmission_model-8`). The `model_version: champion` response value is produced by the current serving wrapper and therefore must not be interpreted as the served entity version.
+
+This validates the complete boundary:
+
+```text
+Registered v8
+    ↓
+Isolated v8 candidate endpoint
+    ↓
+Databricks Model Serving
+    ↓
+Real inference request
+    ↓
+Prediction response
+```
+
 ## Current Phase 7 position
 
-The v8 serving boundary has now passed deployment validation:
+The v8 serving and inference boundaries have now passed validation:
 
 ```text
 Registered v8
@@ -178,18 +213,13 @@ Isolated candidate serving endpoint
 Model-server load
     ↓
 DEPLOYMENT_READY
+    ↓
+Exact 28-field inference
+    ↓
+Prediction response validated
 ```
 
-The next unresolved boundary is **direct inference against the v8 candidate endpoint**.
-
-The next validation should use the exact model signature above and confirm the returned prediction contract:
-
-```text
-predicted_label
-probability
-risk_tier
-model_version
-```
+The next unresolved boundary is **FastAPI integration**.
 
 ## Validation sequence
 
@@ -222,9 +252,11 @@ Phase 7 remains in progress.
 - v8 model signature
 - isolated v8 serving endpoint
 - v8 deployment state: `DEPLOYMENT_READY`
+- exact 28-field v8 inference request
+- real Databricks Model Serving inference
+- prediction response contract
 
 **Next:**
 
-- direct inference against the isolated v8 endpoint
-- response-contract validation
-- FastAPI integration
+- FastAPI integration with the validated Databricks serving client
+- serving/integration tests
