@@ -10,17 +10,37 @@ class PredictionRequest(BaseModel):
 
     features: dict[str, Any] = Field(
         ...,
-        description="Dictionary of feature name → value. Must match training schema.",
+        description="Dictionary of feature name → value. Must match the registered model serving schema.",
         examples=[
             {
                 "age": 67,
                 "sex": "Female",
                 "admission_type": "Emergency",
-                "length_of_stay": 4,
+                "admission_source": "Emergency Room",
+                "discharge_disposition": "Home",
+                "length_of_stay_days": 4,
+                "icu_hours": 12,
+                "num_prior_admissions_12m": 1,
+                "num_ed_visits_12m": 2,
+                "primary_diagnosis_group": "Circulatory",
+                "secondary_diagnosis_count": 2,
+                "elixhauser_score": 3,
                 "creatinine": 1.2,
                 "hemoglobin": 12.5,
+                "wbc": 8.4,
+                "sodium": 138.0,
+                "potassium": 4.1,
                 "has_diabetes": 1,
-                "has_heart_failure": 0,
+                "has_hypertension": 1,
+                "has_ckd": 0,
+                "has_copd": 0,
+                "has_heart_failure": 1,
+                "num_medications": 8,
+                "had_surgery": 0,
+                "had_icu_stay": 1,
+                "discharge_to_home": 1,
+                "followup_booked": 1,
+                "payer_type": "Private",
             }
         ],
     )
@@ -31,7 +51,7 @@ class BatchPredictionRequest(BaseModel):
 
     records: list[dict[str, Any]] = Field(
         ...,
-        description="List of feature dictionaries.",
+        description="List of feature dictionaries matching the registered model serving schema.",
     )
 
 
