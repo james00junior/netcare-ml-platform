@@ -109,11 +109,90 @@ The deployment process resolves the approved alias to an explicit model version 
 
 ## Phase 7 — Production Model Serving & Inference
 
-Phase 7 is validating the model artifact and serving boundary.
+Phase 7 is validating the model artifact, serving, and inference boundaries.
 
-### Serving contract
+### Current verified candidate: v8
 
-Raw patient feature records are transformed using the fitted preprocessing pipeline before inference. The response contains:
+Registered model:
+
+```text
+netcareaidatabricks.default.readmission_model
+```
+
+Model version:
+
+```text
+8
+```
+
+MLflow run:
+
+```text
+bf12e7f602084e78acdab4797c40c2b2
+```
+
+Isolated candidate endpoint:
+
+```text
+dev_james_mashiyane_za_dev-netcare-readmission-candidate
+```
+
+Verified v8 serving state:
+
+```text
+endpoint state:       READY
+configuration:        NOT_UPDATING
+served model:         readmission_model-8
+model version:        8
+traffic:              100%
+deployment:            DEPLOYMENT_READY
+workload:              Small / CPU
+scale to zero:         enabled
+```
+
+`Scaled to zero` is an idle-state message and is not a deployment failure.
+
+### v8 inference contract
+
+Required inputs:
+
+```text
+age
+sex
+admission_type
+admission_source
+discharge_disposition
+length_of_stay_days
+icu_hours
+num_prior_admissions_12m
+num_ed_visits_12m
+primary_diagnosis_group
+secondary_diagnosis_count
+elixhauser_score
+wbc
+has_diabetes
+has_hypertension
+has_ckd
+has_copd
+has_heart_failure
+num_medications
+had_surgery
+had_icu_stay
+discharge_to_home
+followup_booked
+payer_type
+```
+
+Optional inputs:
+
+```text
+creatinine
+hemoglobin
+sodium
+potassium
+```
+
+Outputs:
 
 ```text
 predicted_label
@@ -122,44 +201,23 @@ risk_tier
 model_version
 ```
 
-External API contract:
+The exact MLflow model signature has been verified from the registered v8 model metadata.
+
+### Current Phase 7 position
 
 ```text
-POST /v1/predictions/readmission
+v8 training                 ✓
+v8 registration             ✓
+v8 model signature           ✓
+v8 isolated deployment       ✓ DEPLOYMENT_READY
+v8 direct inference          → NEXT
+FastAPI integration          →
+Serving/integration tests    →
 ```
 
-### Known-good serving baseline
+The next validation is direct inference against the **v8 candidate endpoint** using the verified signature. No production baseline is modified as part of this investigation.
 
-DEV endpoint:
-
-```text
-dev_james_mashiyane_za_dev-netcare-readmission
-```
-
-The active configuration serves model version **1** at 100% traffic and is `DEPLOYMENT_READY`.
-
-**Version 1 is the protected known-good baseline and must remain untouched while candidate serving is debugged.**
-
-### Current blocker
-
-Candidate serving has exposed two artifact-boundary problems:
-
-1. the serving artifact initially did not package the `src` application code;
-2. subsequent artifacts exposed scikit-learn/runtime deserialization incompatibility.
-
-The current registry implementation derives serialization-sensitive dependency versions from the training environment.
-
-Detailed evidence is maintained in `docs/phase-7-serving-debugging.md`.
-
-### Acceptance criteria
-
-- [ ] self-contained serving artifact validated
-- [ ] candidate deployment reaches `DEPLOYMENT_READY`
-- [ ] direct serving inference succeeds
-- [ ] response contract validated
-- [ ] FastAPI integration succeeds
-- [ ] serving/integration tests pass
-- [ ] architecture documentation reflects the verified implementation
+Detailed serving evidence and historical candidate failures are maintained in `docs/phase-7-serving-debugging.md`.
 
 ## Development and deployment
 
