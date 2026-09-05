@@ -2,15 +2,15 @@
 
 ## Purpose
 
-This document records the evidence and remediation history for Phase 7 model serving. The production baseline remains protected while candidate serving is debugged.
+This document records the evidence and remediation history for Phase 7 model serving. The existing serving endpoint remains protected while the current candidate is debugged through an isolated endpoint.
 
-## Known-good baseline
+## Protected serving baseline
 
 Databricks Model Serving endpoint:
 
 `dev_james_mashiyane_za_dev-netcare-readmission`
 
-Active configuration:
+Current active configuration:
 
 - model: `netcareaidatabricks.default.readmission_model`
 - version: `1`
@@ -18,9 +18,24 @@ Active configuration:
 - traffic: 100%
 - scale to zero: enabled
 
-Version 1 is the known-good serving baseline and must remain untouched while candidate deployment is investigated.
+Version 1 is the protected known-good serving baseline. It is not being modified as part of Phase 7 candidate debugging.
 
-## Candidate failures
+## Current candidate
+
+Registered model version:
+
+`8`
+
+Evidence:
+
+- MLflow registration status: `READY`
+- run ID: `bf12e7f602084e78acdab4797c40c2b2`
+- model source: `models:/m-9fe9fb289f7546f0b0cf4e137422ccdb`
+- Unity Catalog alias: `champion -> 8`
+
+The Phase 7 deployment configuration now includes an isolated candidate endpoint whose explicit model version defaults to `8`. The protected endpoint continues to use explicit version `1`.
+
+## Candidate failures observed before version 8
 
 ### Version 2 — source package missing
 
@@ -54,35 +69,57 @@ The same scikit-learn deserialization failure remained after the first dependenc
 
 ### Version 6 — candidate still not deployment-ready
 
-The candidate deployment continued to fail during model-server loading. At this point the correct engineering action is to diagnose the artifact/runtime boundary rather than create another replacement candidate.
+The candidate deployment continued to fail during model-server loading. The engineering decision is now to diagnose the current candidate through direct serving deployment rather than create another replacement model version.
 
-## Root-cause categories
+## Root-cause categories discovered so far
 
-The failures discovered so far fall into two categories:
+1. **Artifact packaging:** application source was not initially included in the MLflow model artifact.
+2. **Runtime compatibility:** the serving environment did not initially match the environment used to serialize the scikit-learn model.
 
-1. **Artifact packaging:** application source was not included in the MLflow model artifact.
-2. **Runtime compatibility:** the serving environment did not match the environment used to serialize the scikit-learn model.
-
-The current registry implementation addresses runtime reproducibility by deriving serialization-sensitive package versions from the actual training environment when the artifact is created.
+The current registry implementation derives serialization-sensitive package versions from the actual training environment when the artifact is created.
 
 ## Engineering rule
 
-A failed candidate is not discarded merely because a new failure is discovered. The candidate remains the debugging target until the failure boundary is understood and the targeted fix is validated.
+A failed deployment candidate is not discarded merely because a new failure is discovered. The candidate remains the debugging target until the failure boundary is understood and the targeted fix is validated.
 
-Only create a new model version when the model or training result intentionally changes.
+A new model version should only be created when the model or training result intentionally changes.
+
+## Version 8 deployment investigation
+
+The next validation is an isolated deployment of registered model version `8`.
+
+```text
+Registered v8
+    ↓
+Isolated candidate serving endpoint
+    ↓
+Databricks model-server load
+    ↓
+Capture actual deployment logs
+    ↓
+Identify exact exception
+    ↓
+Apply targeted fix
+    ↓
+Redeploy v8
+```
+
+This is deliberately separate from the protected version-1 serving endpoint.
 
 ## Validation sequence
 
 ```text
-Known-good v1
+Protected v1
     ↓
 Freeze
     ↓
-Diagnose candidate artifact
+Deploy current candidate v8 in isolation
+    ↓
+Inspect actual model-server failure, if any
     ↓
 Targeted fix
     ↓
-Rebuild / redeploy candidate
+Redeploy v8
     ↓
 DEPLOYMENT_READY
     ↓
@@ -93,4 +130,4 @@ FastAPI integration
 
 ## Current status
 
-Phase 7 remains in progress. Training and model registration have been repeatedly validated. Version 1 serving remains healthy. Candidate serving is the active unresolved boundary.
+Phase 7 remains in progress. Training and registration of version 8 have been validated. The next unresolved boundary is the isolated deployment and model-server loading of version 8.
