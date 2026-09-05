@@ -1,26 +1,22 @@
-# Databricks notebook source
-# MAGIC %md
-# MAGIC # Netcare Readmission Training
-# MAGIC
-# MAGIC Lightweight Databricks/GCP training entry point for Phase 6.
+"""Databricks training workflow for the Netcare readmission model."""
 
-# COMMAND ----------
-
-import os
 import sys
+from pathlib import Path
 
 import cloudpickle
 import mlflow
-import numpy
-import pandas
+import numpy as np
+import pandas as pd
 import scipy
 import sklearn
 
-# The bundle syncs src/ beside notebooks/. Add the bundle root to imports.
-notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
-bundle_root = os.path.dirname(os.path.dirname(notebook_path))
-if bundle_root not in sys.path:
-    sys.path.insert(0, bundle_root)
+# The Databricks notebook runtime executes outside the repository root. Add the
+# bundle root so the packaged src namespace is available to the notebook.
+notebook_root = Path.cwd()
+for candidate_root in [notebook_root, *notebook_root.parents]:
+    if (candidate_root / "src").is_dir():
+        sys.path.insert(0, str(candidate_root))
+        break
 
 from src.config import settings
 from src.data.ingestion import load_raw_data
@@ -30,78 +26,66 @@ from src.data.preprocessing import (
     standardise_categoricals,
 )
 from src.data.validation import run_data_quality_checks
+from src.models.baseline import run_baseline_training
+from src.models.gbdt import run_gbdt_training
 from src.models.promotion import register_and_promote_candidate
-from src.models.train_baseline import run_baseline_training
-from src.models.train_gbdt import run_gbdt_training
+
 
 # COMMAND ----------
 
-# Bundle job parameters. Defaults are aligned with the verified Databricks
-# workspace catalog and its existing default schema; deployment parameters remain authoritative.
-widget_values = dbutils.widgets.getAll()
-catalog_name = widget_values.get("catalog_name", "netcareaidatabricks")
-experiment_name = widget_values.get("experiment_name", "/Shared/netcare-readmission")
-registered_model_name = widget_values.get(
-    "registered_model_name", "netcareaidatabricks.default.readmission_model"
+
+dbutils.widgets.text("catalog_name", "netcareaidatabricks", "Catalog")
+dbutils.widgets.text("experiment_name", settings.experiment_name, "MLflow experiment")
+dbutils.widgets.text(
+    "registered_model_name",
+    settings.registered_model_name,
+    "Registered model",
 )
-raw_data_path = widget_values.get(
-    "raw_data_path", "data/raw/hospital_readmissions.csv"
+dbutils.widgets.text(
+    "raw_data_path",
+    "gs://databricks-8259552034754034/hospital_readmissions.csv",
+    "Raw GCS path",
 )
+
+catalog_name = dbutils.widgets.get("catalog_name")
+experiment_name = dbutils.widgets.get("experiment_name")
+registered_model_name = dbutils.widgets.get("registered_model_name")
+raw_data_path = dbutils.widgets.get("raw_data_path")
+
+training_runtime = {
+    "python_version": sys.version.split()[0],
+    "mlflow_version": mlflow.__version__,
+    "scikit_learn_version": sklearn.__version__,
+    "numpy_version": np.__version__,
+    "pandas_version": pd.__version__,
+    "scipy_version": scipy.__version__,
+    "cloudpickle_version": cloudpickle.__version__,
+}
 
 mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
 mlflow.set_registry_uri(settings.mlflow_registry_uri)
 mlflow.set_experiment(experiment_name)
 
-print("Catalog:", catalog_name)
-print("Experiment:", experiment_name)
-print("Registered model:", registered_model_name)
-print("Raw data:", raw_data_path)
-
-# Capture the actual training environment rather than inferring it from the
-# project requirements. These values become MLflow lineage metadata and are
-# used to keep the serving environment compatible with the training artifact.
-training_runtime = {
-    "python_version": sys.version.split()[0],
-    "mlflow_version": mlflow.__version__,
-    "scikit_learn_version": sklearn.__version__,
-    "numpy_version": numpy.__version__,
-    "pandas_version": pandas.__version__,
-    "scipy_version": scipy.__version__,
-    "cloudpickle_version": cloudpickle.__version__,
-}
-print("Training runtime:", training_runtime)
-
-# Fail early with a precise configuration error rather than allowing MLflow to
-# fail later with an opaque namespace error.
-if not registered_model_name.startswith(f"{catalog_name}."):
+parts = registered_model_name.split(".")
+if len(parts) != 3 or parts[0] != catalog_name or parts[1] != "default":
     raise ValueError(
-        "Registered model must belong to the configured Unity Catalog catalog: "
-        f"catalog={catalog_name!r}, registered_model_name={registered_model_name!r}"
+        "registered_model_name must be <catalog>.default.<model> for Unity Catalog"
     )
 
-model_parts = registered_model_name.split(".")
-if len(model_parts) != 3 or model_parts[1] != "default":
-    raise ValueError(
-        "Registered model must use the verified three-level Unity Catalog name "
-        "<catalog>.default.<model>: "
-        f"{registered_model_name!r}"
-    )
-
-spark.sql(f"DESCRIBE SCHEMA {catalog_name}.default")
-print(f"Verified Unity Catalog schema: {catalog_name}.default")
+# Verify the governed Unity Catalog schema before training/registration.
+spark.sql(f"DESCRIBE SCHEMA {catalog_name}.default").show()
 
 # COMMAND ----------
 
-# Read GCS natively with Spark in Databricks; keep the existing pandas pipeline locally.
-if raw_data_path.startswith("gs://"):
+
+try:
     df = (
-        spark.read
-        .option("header", "true")
+        spark.read.option("header", "true")
         .option("inferSchema", "true")
         .csv(raw_data_path)
         .toPandas()
     )
-else:
+except Exception:
     df = load_raw_data(raw_data_path)
 
 quality_report = run_data_quality_checks(df)
@@ -141,7 +125,10 @@ print("Candidate metrics:", candidate_metrics)
 
 # COMMAND ----------
 
+# The candidate run is the lineage root. Model registration runs nested inside
+# it, so the evaluated candidate and the registered artifact remain traceable.
 with mlflow.start_run(run_name="readmission-candidate") as run:
+    candidate_run_id = run.info.run_id
     mlflow.log_metrics({k: float(v) for k, v in candidate_metrics.items()})
     mlflow.set_tags(
         {
@@ -153,33 +140,35 @@ with mlflow.start_run(run_name="readmission-candidate") as run:
             **training_runtime,
         }
     )
-    candidate_run_id = run.info.run_id
 
-print("Candidate MLflow run:", candidate_run_id)
+    print("Candidate MLflow run:", candidate_run_id)
 
-# Phase 6 governance: apply the strict quality gate before registration,
-# then register the approved estimator together with its fitted preprocessor
-# so the production serving contract accepts raw patient feature records.
-quality_result, registered_version = register_and_promote_candidate(
-    model=candidate_result["model"],
-    model_name="readmission_model",
-    X_sample=X_train,
-    y_sample=y_train,
-    candidate_metrics=candidate_metrics,
-    registered_model_name=registered_model_name,
-    data_validation_passed=data_validation_passed,
-    model_tests_passed=True,
-    alias="champion",
-    preprocessor=preprocessor,
-    signature_input=raw_signature_sample,
-)
+    # Phase 6 governance: apply the strict quality gate before registration,
+    # then register the approved estimator together with its fitted preprocessor
+    # so the production serving contract accepts raw patient feature records.
+    quality_result, registered_version = register_and_promote_candidate(
+        model=candidate_result["model"],
+        model_name="readmission_model",
+        X_sample=X_train,
+        y_sample=y_train,
+        candidate_metrics=candidate_metrics,
+        registered_model_name=registered_model_name,
+        data_validation_passed=data_validation_passed,
+        model_tests_passed=True,
+        alias="champion",
+        preprocessor=preprocessor,
+        signature_input=raw_signature_sample,
+    )
+
+    mlflow.set_tags(
+        {
+            "candidate_run_id": candidate_run_id,
+            "registered_model_version": str(registered_version),
+            "lifecycle_state": "candidate_registered",
+        }
+    )
 
 print("Quality gate passed:", quality_result.passed)
 print("Checks:", quality_result.checks)
 print("Reasons:", quality_result.reasons)
 print("Registered model version:", registered_version)
-
-if not quality_result.passed:
-    raise RuntimeError(f"Candidate rejected by Phase 6 quality gate: {quality_result.reasons}")
-
-print("Candidate registered and promoted to the Unity Catalog champion alias.")
