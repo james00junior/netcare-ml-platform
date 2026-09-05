@@ -27,89 +27,45 @@ FastAPI / Cloud Run
 GCP API Gateway
 ```
 
-## Phase status
+## Complete production lifecycle
 
-| Phase | Status |
-|---|---|
-| Phase 1 — Production Data Science Pipeline | **COMPLETE** |
-| Phase 2 — MLflow Tracking / Registry | **IMPLEMENTED / VALIDATED** |
-| Phase 3 — GCP Data Lake + Databricks Medallion | **IMPLEMENTED / VALIDATED** |
-| Phase 4 — Databricks Workflows | **IMPLEMENTED / VALIDATED** |
-| Phase 5 — Unity Catalog | **FOUNDATION COMPLETE** |
-| Phase 6 — Model Registry & Promotion | **COMPLETE** |
-| Phase 7 — Production Model Serving & Inference | **IN PROGRESS** |
-| Phase 8–13 | **PENDING** |
+| Phase | Scope | Status |
+|---|---|---|
+| Phase 0 | Project Engineering Foundation | **COMPLETE** |
+| Phase 1 | Production ML Pipeline | **COMPLETE / FROZEN** |
+| Phase 2 | MLflow Experiment Tracking | **IMPLEMENTED / VALIDATED / FROZEN** |
+| Phase 3 | GCS + Medallion Data Architecture | **IMPLEMENTED / VALIDATED / FROZEN** |
+| Phase 4 | Databricks Workflows | **IMPLEMENTED / VALIDATED / FROZEN** |
+| Phase 5 | Unity Catalog Governance | **FOUNDATION COMPLETE / FROZEN** |
+| Phase 6 | Model Registry + Validation Gates | **COMPLETE / FROZEN** |
+| Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE** |
+| Phase 8 | Databricks Model Serving | **IN PROGRESS / v8 VALIDATED** |
+| Phase 9 | Cloud Run Integration API | **NEXT** |
+| Phase 10 | Security + Secrets + IAM | **PENDING** |
+| Phase 11 | Monitoring + Observability | **PENDING** |
+| Phase 12 | Drift + Retraining | **PENDING** |
+| Phase 13 | Canary + Production Releases | **PENDING** |
 
-## Technology stack
+Phases 1–6 are closed and frozen. The permanent production baseline is protected. No Phase 1–6 component is modified as part of current serving work.
 
-- **Cloud:** GCP
-- **Storage:** Google Cloud Storage
-- **Data / orchestration:** Databricks on GCP
-- **Storage format:** Delta Lake
-- **Governance:** Unity Catalog
-- **Experiment tracking:** MLflow
-- **Models:** scikit-learn Logistic Regression and HistGradientBoosting
-- **Serving:** Databricks Model Serving
-- **API:** FastAPI, Cloud Run, GCP API Gateway
-- **Secrets:** GCP Secret Manager
-- **CI/CD:** GitHub Actions
-- **Observability:** Cloud Monitoring / Cloud Logging
+## Phase 8 — Databricks Model Serving
 
-The baseline workload is CPU-based tabular classification.
-
-## Repository structure
+The first production serving implementation uses **Databricks Model Serving** rather than introducing another serving platform unnecessarily.
 
 ```text
-netcare-ml-platform/
-├── src/
-├── api/
-├── notebooks/
-├── databricks/
-├── infrastructure/
-├── tests/
-├── docs/
-├── .github/workflows/
-└── run_pipeline.py
+Client System
+      │ HTTPS
+      ▼
+Databricks Serving Endpoint
+      │
+      ▼
+Production ML Model
+      │
+      ▼
+Prediction
 ```
 
-## Data architecture
-
-**Bronze** — raw landing data.
-
-**Silver** — validated and standardized encounter data.
-
-**Gold** — approved analytics and ML features.
-
-### Unity Catalog
-
-Verified registered model:
-
-```text
-netcareaidatabricks.default.readmission_model
-```
-
-The registered model uses the verified `default` schema.
-
-## ML lifecycle
-
-```text
-Data → Validation → Leakage-safe preprocessing
-     → Train/Test → Evaluation → MLflow candidate
-     → Quality Gate → Register → Promote champion
-     → Explicit serving deployment
-```
-
-Quality gates require ROC-AUC ≥ 0.70, Recall ≥ 0.60, data validation, model tests, and no unacceptable regression when a production comparison is available.
-
-## Phase 6 — Model Registry & Promotion
-
-Phase 6 is complete. Models are evaluated before registration and promotion. Unity Catalog provides governed model versions and the `champion` alias.
-
-The deployment process resolves the approved alias to an explicit model version before serving deployment.
-
-## Phase 7 — Production Model Serving & Inference
-
-Phase 7 is validating the model artifact, serving, and inference boundaries.
+The model is exposed through the Databricks serving invocation API. The current validated candidate is model version `8` on an isolated serving endpoint.
 
 ### Current verified candidate: v8
 
@@ -145,9 +101,9 @@ configuration:        NOT_UPDATING
 served model:         readmission_model-8
 model version:        8
 traffic:              100%
-deployment:            DEPLOYMENT_READY
-workload:              Small / CPU
-scale to zero:         enabled
+deployment:           DEPLOYMENT_READY
+workload:             Small / CPU
+scale to zero:        enabled
 ```
 
 `Scaled to zero` is an idle-state message and is not a deployment failure.
@@ -201,7 +157,7 @@ risk_tier
 model_version
 ```
 
-The exact MLflow model signature has been verified from the registered v8 model metadata.
+The exact MLflow model signature has been verified from registered v8 metadata.
 
 ### Direct v8 inference validation
 
@@ -218,21 +174,229 @@ model_version: champion
 
 The endpoint configuration independently establishes that the served model was version `8` (`readmission_model-8`). The response `model_version: champion` is produced by the current serving wrapper and is not the serving entity version.
 
-### Current Phase 7 position
+## Phase 9 — Cloud Run Integration API
+
+Real client systems should not depend directly on internal ML infrastructure. The integration layer provides a stable external contract.
 
 ```text
-v8 training                 ✓
-v8 registration             ✓
-v8 model signature           ✓
-v8 isolated deployment       ✓ DEPLOYMENT_READY
-v8 direct inference          ✓ VALIDATED
-FastAPI integration          → NEXT
-Serving/integration tests    →
+Existing Hospital System
+          │
+          ▼
+     GCP API Gateway
+          │
+          ▼
+Integration Service
+   (Cloud Run / FastAPI)
+          │
+          ▼
+Databricks Model Serving
 ```
 
-No production baseline is modified as part of this investigation.
+The integration service will handle:
 
-Detailed serving evidence and historical candidate failures are maintained in `docs/phase-7-serving-debugging.md`.
+- API versioning
+- request validation
+- authentication
+- request transformation
+- error handling
+- model endpoint communication
+- response formatting
+
+The client contract will be:
+
+```text
+POST /v1/predictions/readmission
+```
+
+The internal model, features, Databricks model version, and serving infrastructure can evolve without breaking the external integration contract.
+
+## Phase 10 — Security + Secrets + IAM
+
+Production credentials must be managed through GCP-native controls.
+
+```text
+Google Secret Manager
+        │
+        ▼
+Cloud Run / CI-CD / Databricks
+```
+
+Secrets must never be stored in committed `.env` files, Python source, or notebooks.
+
+Production controls include:
+
+- IAM
+- service accounts
+- Google Secret Manager
+- Databricks secrets
+
+## Phase 11 — Monitoring + Observability
+
+Monitoring will operate at three levels.
+
+### Infrastructure
+
+Monitor API latency, errors, uptime, and throughput using **Cloud Monitoring** and **Cloud Logging**.
+
+### Data
+
+Monitor missing values, schema changes, data drift, and distribution changes.
+
+### Model
+
+Monitor prediction distribution, model confidence, actual outcomes, ROC-AUC, Recall, Precision, and F1.
+
+The production outcome feedback loop is:
+
+```text
+Prediction
+    │
+    ▼
+Prediction log
+    │
+    ▼
+Actual outcome arrives later
+    │
+    ▼
+Join prediction + outcome
+    │
+    ▼
+Calculate production performance
+```
+
+## Phase 12 — Drift + Retraining
+
+The production system will detect significant drift and trigger controlled retraining.
+
+```text
+Production Data
+      │
+      ▼
+Drift Detection
+      │
+      ├── No drift → Continue
+      │
+      ▼
+Significant drift
+      │
+      ▼
+Retraining Workflow
+      │
+      ▼
+Model Evaluation
+      │
+      ├── Worse → Reject
+      │
+      ▼
+Better
+      │
+      ▼
+Register New Version
+      │
+      ▼
+Deploy
+```
+
+Retraining may be scheduled, triggered by drift, or triggered by new labelled data.
+
+## Phase 13 — Canary + Production Releases
+
+Production model releases will support gradual traffic shifting and rollback.
+
+```text
+Model v1 → Production
+```
+
+Then:
+
+```text
+Model v1 → 90%
+Model v2 → 10%
+```
+
+If the new model performs safely:
+
+```text
+Model v1 → 50%
+Model v2 → 50%
+```
+
+Finally:
+
+```text
+Model v2 → 100%
+```
+
+Rollback:
+
+```text
+Model v2 fails
+      ↓
+Traffic returns to v1
+```
+
+## Technology stack
+
+- **Cloud:** GCP
+- **Storage:** Google Cloud Storage
+- **Data / orchestration:** Databricks on GCP
+- **Storage format:** Delta Lake
+- **Governance:** Unity Catalog
+- **Experiment tracking:** MLflow
+- **Models:** scikit-learn Logistic Regression and HistGradientBoosting
+- **Serving:** Databricks Model Serving
+- **Integration API:** FastAPI on Cloud Run
+- **API Gateway:** GCP API Gateway
+- **Secrets:** GCP Secret Manager and Databricks secrets
+- **CI/CD:** GitHub Actions + Databricks Bundles
+- **Observability:** Cloud Monitoring / Cloud Logging
+
+The baseline workload is CPU-based tabular classification.
+
+## Repository structure
+
+```text
+netcare-ml-platform/
+├── src/
+├── api/
+├── notebooks/
+├── databricks/
+├── infrastructure/
+├── tests/
+├── docs/
+├── .github/workflows/
+└── run_pipeline.py
+```
+
+## Data architecture
+
+**Bronze** — raw landing data.
+
+**Silver** — validated and standardized encounter data.
+
+**Gold** — approved analytics and ML features.
+
+### Unity Catalog
+
+Verified registered model:
+
+```text
+netcareaidatabricks.default.readmission_model
+```
+
+The registered model uses the verified `default` schema.
+
+## ML lifecycle
+
+```text
+Data → Validation → Leakage-safe preprocessing
+     → Train/Test → Evaluation → MLflow candidate
+     → Quality Gate → Register → Promote champion
+     → Databricks Model Serving
+     → Integration API → Production Release
+```
+
+Quality gates require ROC-AUC ≥ 0.70, Recall ≥ 0.60, data validation, model tests, and no unacceptable regression when a production comparison is available.
 
 ## Development and deployment
 
