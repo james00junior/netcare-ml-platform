@@ -10,7 +10,7 @@ class PredictionRequest(BaseModel):
 
     features: dict[str, Any] = Field(
         ...,
-        description="Dictionary of feature name → value. Must match the registered model serving schema.",
+        description="Dictionary of feature name → value matching the registered model serving schema.",
         examples=[
             {
                 "age": 67,
@@ -60,11 +60,8 @@ class PredictionResponse(BaseModel):
 
     predicted_label: int = Field(..., description="0 = not readmitted, 1 = readmitted ≤30d")
     probability: float = Field(..., description="Probability of 30-day readmission")
-    model_version: str | None = None
-    risk_tier: str | None = Field(
-        None,
-        description="low / medium / high based on probability thresholds",
-    )
+    model_version: str = Field(..., description="Serving model identifier")
+    risk_tier: str = Field(..., description="low / medium / high based on probability thresholds")
 
 
 class BatchPredictionResponse(BaseModel):
