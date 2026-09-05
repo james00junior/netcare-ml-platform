@@ -203,6 +203,21 @@ model_version
 
 The exact MLflow model signature has been verified from the registered v8 model metadata.
 
+### Direct v8 inference validation
+
+The exact 28-field contract was successfully sent through the existing `DatabricksServingClient` to the isolated v8 candidate endpoint. Inference executed on **Databricks Model Serving**, not on the local Mac.
+
+Observed response:
+
+```text
+predicted_label: 0
+probability: 0.30573779349128066
+risk_tier: medium
+model_version: champion
+```
+
+The endpoint configuration independently establishes that the served model was version `8` (`readmission_model-8`). The response `model_version: champion` is produced by the current serving wrapper and is not the serving entity version.
+
 ### Current Phase 7 position
 
 ```text
@@ -210,12 +225,12 @@ v8 training                 ✓
 v8 registration             ✓
 v8 model signature           ✓
 v8 isolated deployment       ✓ DEPLOYMENT_READY
-v8 direct inference          → NEXT
-FastAPI integration          →
+v8 direct inference          ✓ VALIDATED
+FastAPI integration          → NEXT
 Serving/integration tests    →
 ```
 
-The next validation is direct inference against the **v8 candidate endpoint** using the verified signature. No production baseline is modified as part of this investigation.
+No production baseline is modified as part of this investigation.
 
 Detailed serving evidence and historical candidate failures are maintained in `docs/phase-7-serving-debugging.md`.
 
