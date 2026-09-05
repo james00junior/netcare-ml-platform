@@ -1,6 +1,27 @@
 # Netcare ML Platform — Production Roadmap
 
-This document is the source-of-truth roadmap for the production lifecycle after the frozen Phase 1–6 foundations.
+This document is the source-of-truth roadmap for the production lifecycle. Completed milestones are frozen once validated by evidence.
+
+## Milestone Status
+
+| Phase | Scope | Status |
+|---|---|---|
+| Phase 0 | Project Engineering Foundation | **COMPLETE / FROZEN** |
+| Phase 1 | Production ML Pipeline | **COMPLETE / FROZEN** |
+| Phase 2 | MLflow Experiment Tracking | **IMPLEMENTED / VALIDATED / FROZEN** |
+| Phase 3 | GCS + Medallion Data Architecture | **IMPLEMENTED / VALIDATED / FROZEN** |
+| Phase 4 | Databricks Workflows | **IMPLEMENTED / VALIDATED / FROZEN** |
+| Phase 5 | Unity Catalog Governance | **FOUNDATION COMPLETE / FROZEN** |
+| Phase 6 | Model Registry + Validation Gates | **COMPLETE / FROZEN** |
+| Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE / FROZEN** |
+| Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
+| Phase 9 | Cloud Run Integration API | **CORE INTEGRATION VALIDATED — CLOUD RUN / API GATEWAY PENDING** |
+| Phase 10 | Security + Secrets + IAM | **PENDING** |
+| Phase 11 | Monitoring + Observability | **PENDING** |
+| Phase 12 | Drift + Retraining | **PENDING** |
+| Phase 13 | Canary + Production Releases | **PENDING** |
+
+**Freeze rule:** Phases 1–8 are closed. Their validated implementation is not modified while Phase 9–13 work proceeds. The protected v1 production baseline is never touched.
 
 ## Phase 8 — Production Model Serving
 
@@ -19,7 +40,57 @@ Production ML Model
 Prediction
 ```
 
-The model is exposed as an API. The current Phase 8 candidate is model version 8, validated on an isolated Databricks serving endpoint with successful direct inference.
+### Validated milestone: Serving v2 → Registry Model v8
+
+Registered model:
+
+```text
+netcareaidatabricks.default.readmission_model
+```
+
+Model version:
+
+```text
+8
+```
+
+MLflow run:
+
+```text
+bf12e7f602084e78acdab4797c40c2b2
+```
+
+Isolated candidate endpoint:
+
+```text
+dev_james_mashiyane_za_dev-netcare-readmission-candidate
+```
+
+Verified serving state:
+
+```text
+endpoint state:       READY
+configuration:        NOT_UPDATING
+served model:         readmission_model-8
+model version:        8
+traffic:              100%
+deployment:           DEPLOYMENT_READY
+workload:             Small / CPU
+scale to zero:        enabled
+```
+
+Direct inference was successfully validated using the exact 28-field model contract. Observed response:
+
+```text
+predicted_label: 0
+probability: 0.30573779349128066
+risk_tier: medium
+model_version: champion
+```
+
+The endpoint configuration independently establishes that the served model is Registry version `8`. The response `model_version: champion` is produced by the serving wrapper and is not the serving entity version.
+
+**Phase 8 is now frozen.**
 
 ## Phase 9 — Integration Layer for Existing Systems
 
@@ -39,7 +110,58 @@ Integration Service
 Databricks Model Serving
 ```
 
-The integration service provides a stable external contract and handles:
+### Validated milestone: FastAPI → Databricks inference boundary
+
+FastAPI on `0.0.0.0:8080` was validated with the governed Databricks backend.
+
+Health:
+
+```text
+status:         ok
+model_loaded:   true
+model_version:  databricks-serving
+environment:    dev
+```
+
+Single-record inference through FastAPI:
+
+```text
+predicted_label: 0
+probability: 0.30573779349128066
+model_version: champion
+risk_tier: medium
+```
+
+Batch inference through FastAPI:
+
+```text
+record 1 → label=0, probability=0.30573779349128066, risk_tier=medium
+record 2 → label=0, probability=0.24432526104648977, risk_tier=low
+```
+
+The complete validated local integration boundary is:
+
+```text
+FastAPI :8080
+      ↓
+DatabricksServingClient
+      ↓
+Serving v2
+      ↓
+Registry Model v8
+      ↓
+Prediction
+```
+
+**Phase 9 core inference integration is now frozen.** Remaining Phase 9 work is infrastructure deployment only: Cloud Run and GCP API Gateway.
+
+Client contract:
+
+```text
+POST /v1/predictions/readmission
+```
+
+The integration service provides:
 
 - API versioning
 - request validation
@@ -48,14 +170,6 @@ The integration service provides a stable external contract and handles:
 - error handling
 - model endpoint communication
 - response formatting
-
-Client contract:
-
-```text
-POST /v1/predictions/readmission
-```
-
-Internal model choice, features, Databricks model version, and serving infrastructure can evolve without breaking existing clients.
 
 ## Phase 10 — Security and Secrets
 
@@ -83,8 +197,6 @@ Three monitoring layers will be implemented.
 
 ### Infrastructure
 
-Monitor:
-
 - API latency
 - errors
 - uptime
@@ -94,16 +206,12 @@ Use Cloud Monitoring and Cloud Logging.
 
 ### Data
 
-Monitor:
-
 - missing values
 - schema changes
 - data drift
 - distribution changes
 
 ### Model
-
-Monitor:
 
 - prediction distribution
 - model confidence
@@ -113,27 +221,7 @@ Monitor:
 - Precision
 - F1
 
-Outcome feedback loop:
-
-```text
-Prediction
-    │
-    ▼
-Prediction log
-    │
-    ▼
-Actual outcome arrives later
-    │
-    ▼
-Join prediction + outcome
-    │
-    ▼
-Calculate production performance
-```
-
 ## Phase 12 — Drift Detection and Retraining
-
-The production lifecycle becomes:
 
 ```text
 Production Data
@@ -142,7 +230,6 @@ Production Data
 Drift Detection
       │
       ├── No drift → Continue
-      │
       ▼
 Significant drift
       │
@@ -153,7 +240,6 @@ Retraining Workflow
 Model Evaluation
       │
       ├── Worse → Reject
-      │
       ▼
 Better
       │
@@ -164,11 +250,7 @@ Register New Version
 Deploy
 ```
 
-Retraining can be:
-
-- scheduled
-- triggered by drift
-- triggered by new labelled data
+Retraining can be scheduled, triggered by drift, or triggered by new labelled data.
 
 ## Phase 13 — Production Model Release Strategy
 
@@ -176,108 +258,19 @@ Production releases will support gradual traffic shifting and rollback.
 
 ```text
 Model v1 → Production
-```
-
-Then:
-
-```text
-Model v1 → 90%
-Model v2 → 10%
-```
-
-Monitor the new model before increasing traffic:
-
-```text
-Model v1 → 50%
-Model v2 → 50%
-```
-
-Finally:
-
-```text
+Model v1 → 90%   / Model v2 → 10%
+Model v1 → 50%   / Model v2 → 50%
 Model v2 → 100%
 ```
 
-Rollback:
-
-```text
-Model v2 fails
-      ↓
-Traffic returns to v1
-```
+Rollback returns traffic to the previously trusted production model.
 
 ## Complete lifecycle
 
 ```text
-┌─────────────────────────────────────┐
-│          PHASE 0                    │
-│  Project Engineering Foundation     │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 1                    │
-│  Production ML Pipeline             │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 2                    │
-│  MLflow Experiment Tracking         │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 3                    │
-│  GCS + Medallion Data Architecture  │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 4                    │
-│  Databricks Workflows               │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 5                    │
-│  Unity Catalog Governance           │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 6                    │
-│  Model Registry + Validation Gates  │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 7                    │
-│  GitHub CI/CD + Databricks Bundles  │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 8                    │
-│  Databricks Model Serving           │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 9                    │
-│  Cloud Run Integration API          │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 10                   │
-│  Security + Secrets + IAM           │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 11                   │
-│  Monitoring + Observability         │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 12                   │
-│  Drift + Retraining                 │
-└──────────────────┬──────────────────┘
-                   ▼
-┌─────────────────────────────────────┐
-│          PHASE 13                   │
-│  Canary + Production Releases       │
-└─────────────────────────────────────┘
+Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
+                                                        ↓
+Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13
 ```
 
-Phases 1–6 remain frozen. Phase 7 is the completed CI/CD and Databricks Bundles foundation. Phase 8 is the current active production-serving phase; Phases 9–13 follow in order.
+Phases 1–8 are frozen. Phase 9 core inference integration is frozen. Remaining work begins with Phase 9 Cloud Run deployment and GCP API Gateway exposure, followed by Phases 10–13.
