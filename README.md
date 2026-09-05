@@ -38,15 +38,15 @@ GCP API Gateway
 | Phase 4 | Databricks Workflows | **IMPLEMENTED / VALIDATED / FROZEN** |
 | Phase 5 | Unity Catalog Governance | **FOUNDATION COMPLETE / FROZEN** |
 | Phase 6 | Model Registry + Validation Gates | **COMPLETE / FROZEN** |
-| Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE** |
-| Phase 8 | Databricks Model Serving | **IN PROGRESS / v8 VALIDATED** |
-| Phase 9 | Cloud Run Integration API | **NEXT** |
+| Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE / FROZEN** |
+| Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
+| Phase 9 | Cloud Run Integration API | **CORE INTEGRATION VALIDATED — CLOUD RUN / API GATEWAY PENDING** |
 | Phase 10 | Security + Secrets + IAM | **PENDING** |
 | Phase 11 | Monitoring + Observability | **PENDING** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-Phases 1–6 are closed and frozen. The permanent production baseline is protected. No Phase 1–6 component is modified as part of current serving work.
+Phases 1–8 are closed and frozen. The permanent production baseline and validated serving candidate are protected. Current work proceeds only at the Phase 9 external integration boundary.
 
 ## Phase 8 — Databricks Model Serving
 
@@ -65,9 +65,9 @@ Production ML Model
 Prediction
 ```
 
-The model is exposed through the Databricks serving invocation API. The current validated candidate is model version `8` on an isolated serving endpoint.
+The model is exposed through the Databricks serving invocation API. The validated Phase 8 candidate is **serving v2**, serving **registered model version 8** on an isolated serving endpoint.
 
-### Current verified candidate: v8
+### Current verified candidate: Serving v2 → Model v8
 
 Registered model:
 
@@ -93,7 +93,7 @@ Isolated candidate endpoint:
 dev_james_mashiyane_za_dev-netcare-readmission-candidate
 ```
 
-Verified v8 serving state:
+Verified serving state:
 
 ```text
 endpoint state:       READY
@@ -192,6 +192,51 @@ Integration Service
 Databricks Model Serving
 ```
 
+### Validated integration boundary
+
+The FastAPI application on `0.0.0.0:8080` has been validated against the Databricks serving backend.
+
+Health validation:
+
+```text
+status:         ok
+model_loaded:   true
+model_version:  databricks-serving
+environment:    dev
+```
+
+Single-record inference through FastAPI was validated successfully:
+
+```text
+predicted_label: 0
+probability: 0.30573779349128066
+model_version: champion
+risk_tier: medium
+```
+
+Batch inference was also validated successfully with two records:
+
+```text
+record 1 → label=0, probability=0.30573779349128066, risk_tier=medium
+record 2 → label=0, probability=0.24432526104648977, risk_tier=low
+```
+
+This validates the application integration path:
+
+```text
+FastAPI :8080
+      ↓
+DatabricksServingClient
+      ↓
+Serving v2
+      ↓
+Registry Model v8
+      ↓
+Prediction
+```
+
+Remaining Phase 9 work is deployment of this validated integration service to **Cloud Run** and exposure through **GCP API Gateway**. The validated inference code is now frozen while those infrastructure boundaries are implemented.
+
 The integration service will handle:
 
 - API versioning
@@ -202,7 +247,7 @@ The integration service will handle:
 - model endpoint communication
 - response formatting
 
-The client contract will be:
+The client contract is:
 
 ```text
 POST /v1/predictions/readmission
