@@ -1,13 +1,11 @@
 # Netcare ML Platform
 
-Production-oriented ML platform for **30-day hospital readmission prediction**, designed exclusively for **Google Cloud Platform (GCP)** with **Databricks on GCP**.
+Production-oriented ML platform for **30-day hospital readmission prediction**, designed as a **Databricks-centric production ML system on GCP**.
 
 ## Architecture
 
 ```text
 Hospital / Clinical Sources
-          ↓
-          GCP
           ↓
 Google Cloud Storage
           ↓
@@ -22,10 +20,12 @@ UC Model Registry
           ↓
 Databricks Model Serving
           ↓
-FastAPI / Cloud Run
-          ↓
-GCP API Gateway
+Existing Hospital / Application Systems
 ```
+
+GitHub provides source control and CI/CD; GCS provides cloud data storage; Databricks provides the ML lifecycle, governance, orchestration, registry, and serving platform.
+
+The architecture deliberately avoids an additional API compute layer unless a future enterprise requirement justifies it. Cloud Run and API Gateway are not required for the core ML serving path.
 
 ## Complete production lifecycle
 
@@ -40,17 +40,17 @@ GCP API Gateway
 | Phase 6 | Model Registry + Validation Gates | **COMPLETE / FROZEN** |
 | Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE / FROZEN** |
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
-| Phase 9 | Cloud Run Integration API | **CORE INTEGRATION VALIDATED — CLOUD RUN / API GATEWAY PENDING** |
+| Phase 9 | Existing-System Integration via Databricks Serving | **NEXT** |
 | Phase 10 | Security + Secrets + IAM | **PENDING** |
 | Phase 11 | Monitoring + Observability | **PENDING** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-Phases 1–8 are closed and frozen. The permanent production baseline and validated serving candidate are protected. Current work proceeds only at the Phase 9 external integration boundary.
+Phases 1–8 are closed and frozen. The protected production baseline and validated serving candidate are not modified while later lifecycle work proceeds.
 
 ## Phase 8 — Databricks Model Serving
 
-The first production serving implementation uses **Databricks Model Serving** rather than introducing another serving platform unnecessarily.
+The production serving implementation uses **Databricks Model Serving** directly rather than introducing another serving platform unnecessarily.
 
 ```text
 Client System
@@ -65,7 +65,7 @@ Production ML Model
 Prediction
 ```
 
-The model is exposed through the Databricks serving invocation API. The validated Phase 8 candidate is **serving v2**, serving **registered model version 8** on an isolated serving endpoint.
+The validated Phase 8 candidate is **Serving v2**, serving **registered model version 8** on an isolated serving endpoint.
 
 ### Current verified candidate: Serving v2 → Model v8
 
@@ -174,122 +174,136 @@ model_version: champion
 
 The endpoint configuration independently establishes that the served model was version `8` (`readmission_model-8`). The response `model_version: champion` is produced by the current serving wrapper and is not the serving entity version.
 
-## Phase 9 — Cloud Run Integration API
+**Phase 8 is frozen.**
 
-Real client systems should not depend directly on internal ML infrastructure. The integration layer provides a stable external contract.
+## Phase 9 — Existing-System Integration
+
+The production integration boundary is deliberately simple: existing hospital or application systems call the Databricks serving endpoint over HTTPS using the approved authentication mechanism.
 
 ```text
 Existing Hospital System
           │
-          ▼
-     GCP API Gateway
-          │
-          ▼
-Integration Service
-   (Cloud Run / FastAPI)
-          │
+          │ HTTPS + JSON
           ▼
 Databricks Model Serving
-```
-
-### Validated integration boundary
-
-The FastAPI application on `0.0.0.0:8080` has been validated against the Databricks serving backend.
-
-Health validation:
-
-```text
-status:         ok
-model_loaded:   true
-model_version:  databricks-serving
-environment:    dev
-```
-
-Single-record inference through FastAPI was validated successfully:
-
-```text
-predicted_label: 0
-probability: 0.30573779349128066
-model_version: champion
-risk_tier: medium
-```
-
-Batch inference was also validated successfully with two records:
-
-```text
-record 1 → label=0, probability=0.30573779349128066, risk_tier=medium
-record 2 → label=0, probability=0.24432526104648977, risk_tier=low
-```
-
-This validates the application integration path:
-
-```text
-FastAPI :8080
-      ↓
-DatabricksServingClient
-      ↓
+          │
+          ▼
 Serving v2
-      ↓
+          │
+          ▼
 Registry Model v8
-      ↓
+          │
+          ▼
 Prediction
 ```
 
-Remaining Phase 9 work is deployment of this validated integration service to **Cloud Run** and exposure through **GCP API Gateway**. The validated inference code is now frozen while those infrastructure boundaries are implemented.
-
-The integration service will handle:
-
-- API versioning
-- request validation
-- authentication
-- request transformation
-- error handling
-- model endpoint communication
-- response formatting
-
-The client contract is:
+### Integration contract
 
 ```text
-POST /v1/predictions/readmission
+POST <Databricks serving endpoint>/invocations
 ```
 
-The internal model, features, Databricks model version, and serving infrastructure can evolve without breaking the external integration contract.
+Request contract:
+
+```text
+{
+  "dataframe_records": [
+    { ... model features ... }
+  ]
+}
+```
+
+Response contract:
+
+```text
+{
+  "predictions": [
+    {
+      "predicted_label": 0,
+      "probability": 0.30,
+      "risk_tier": "medium",
+      "model_version": "champion"
+    }
+  ]
+}
+```
+
+The integration client already validates the serving response and normalises it into the application contract. FastAPI remains available as a local integration adapter/test harness, but is not a required production runtime component.
+
+This design keeps the external integration contract stable while allowing the underlying model, model version, preprocessing implementation, and serving deployment to evolve independently.
+
+### Why no Cloud Run or API Gateway?
+
+Databricks Model Serving already provides the required HTTPS model inference boundary. Adding Cloud Run and API Gateway would introduce another runtime and authentication boundary without being necessary for the stated assessment requirements.
+
+Additional GCP API infrastructure should only be introduced if the enterprise requires capabilities such as:
+
+- custom business logic outside model inference
+- protocol transformation
+- API management policies
+- a separate application security boundary
+- aggregation of multiple backend services
+- organisation-specific networking requirements
+
+This minimises infrastructure cost and operational complexity while preserving a production-grade model lifecycle.
 
 ## Phase 10 — Security + Secrets + IAM
 
-Production credentials must be managed through GCP-native controls.
+Production authentication will use approved Databricks identity mechanisms and least-privilege access.
 
 ```text
-Google Secret Manager
-        │
-        ▼
-Cloud Run / CI-CD / Databricks
+Hospital System / Service Identity
+              │
+              ▼
+      Databricks Authentication
+              │
+              ▼
+        Model Serving
+              │
+              ▼
+        Unity Catalog
 ```
 
-Secrets must never be stored in committed `.env` files, Python source, or notebooks.
+Secrets and credentials must never be stored in committed `.env` files, Python source, or notebooks.
 
 Production controls include:
 
-- IAM
-- service accounts
-- Google Secret Manager
-- Databricks secrets
+- least-privilege identities
+- service principals where appropriate
+- Unity Catalog permissions
+- Databricks secret management
+- credential rotation
+- audit logging
 
 ## Phase 11 — Monitoring + Observability
 
 Monitoring will operate at three levels.
 
-### Infrastructure
+### Infrastructure / Serving
 
-Monitor API latency, errors, uptime, and throughput using **Cloud Monitoring** and **Cloud Logging**.
+- request latency
+- error rate
+- availability
+- throughput
+- serving resource utilisation
 
 ### Data
 
-Monitor missing values, schema changes, data drift, and distribution changes.
+- missing values
+- schema changes
+- feature distribution changes
+- data drift
+- data quality failures
 
 ### Model
 
-Monitor prediction distribution, model confidence, actual outcomes, ROC-AUC, Recall, Precision, and F1.
+- prediction distribution
+- confidence distribution
+- actual outcomes
+- ROC-AUC
+- Recall
+- Precision
+- F1
 
 The production outcome feedback loop is:
 
@@ -309,6 +323,8 @@ Join prediction + outcome
 Calculate production performance
 ```
 
+Monitoring and alerting will be implemented primarily with Databricks-native telemetry, tables, jobs, and dashboards, with GCP monitoring used where appropriate for the underlying cloud resources.
+
 ## Phase 12 — Drift + Retraining
 
 The production system will detect significant drift and trigger controlled retraining.
@@ -321,64 +337,50 @@ Drift Detection
       │
       ├── No drift → Continue
       │
-      ▼
-Significant drift
-      │
-      ▼
-Retraining Workflow
-      │
-      ▼
-Model Evaluation
-      │
-      ├── Worse → Reject
-      │
-      ▼
-Better
-      │
-      ▼
-Register New Version
-      │
-      ▼
-Deploy
+      └── Significant drift
+                │
+                ▼
+        Retraining Workflow
+                │
+                ▼
+          Model Evaluation
+                │
+                ├── Worse → Reject
+                │
+                ▼
+             Better
+                │
+                ▼
+          Register New Version
+                │
+                ▼
+              Deploy
 ```
 
 Retraining may be scheduled, triggered by drift, or triggered by new labelled data.
 
 ## Phase 13 — Canary + Production Releases
 
-Production model releases will support gradual traffic shifting and rollback.
+Databricks Model Serving supports controlled model deployment and traffic management.
 
 ```text
-Model v1 → Production
+Trusted Model
+      │
+      ▼
+Candidate Model
+      │
+      ▼
+Validation
+      │
+      ▼
+Controlled Traffic Shift
+      │
+      ├── Healthy → Increase traffic
+      │
+      └── Unhealthy → Roll back
 ```
 
-Then:
-
-```text
-Model v1 → 90%
-Model v2 → 10%
-```
-
-If the new model performs safely:
-
-```text
-Model v1 → 50%
-Model v2 → 50%
-```
-
-Finally:
-
-```text
-Model v2 → 100%
-```
-
-Rollback:
-
-```text
-Model v2 fails
-      ↓
-Traffic returns to v1
-```
+A production release maintains a previously trusted model so rollback can be performed without retraining.
 
 ## Technology stack
 
@@ -390,11 +392,9 @@ Traffic returns to v1
 - **Experiment tracking:** MLflow
 - **Models:** scikit-learn Logistic Regression and HistGradientBoosting
 - **Serving:** Databricks Model Serving
-- **Integration API:** FastAPI on Cloud Run
-- **API Gateway:** GCP API Gateway
-- **Secrets:** GCP Secret Manager and Databricks secrets
+- **Integration:** HTTPS / JSON directly to Databricks Model Serving
 - **CI/CD:** GitHub Actions + Databricks Bundles
-- **Observability:** Cloud Monitoring / Cloud Logging
+- **Monitoring:** Databricks-native telemetry, tables and dashboards + GCP monitoring where appropriate
 
 The baseline workload is CPU-based tabular classification.
 
@@ -406,12 +406,13 @@ netcare-ml-platform/
 ├── api/
 ├── notebooks/
 ├── databricks/
-├── infrastructure/
 ├── tests/
 ├── docs/
 ├── .github/workflows/
 └── run_pipeline.py
 ```
+
+The `api/` package is retained as a local/test integration adapter; it is not required as a production serving layer.
 
 ## Data architecture
 
@@ -438,7 +439,9 @@ Data → Validation → Leakage-safe preprocessing
      → Train/Test → Evaluation → MLflow candidate
      → Quality Gate → Register → Promote champion
      → Databricks Model Serving
-     → Integration API → Production Release
+     → Existing System Integration
+     → Monitoring → Drift Detection
+     → Retraining → Validation → Controlled Release
 ```
 
 Quality gates require ROC-AUC ≥ 0.70, Recall ≥ 0.60, data validation, model tests, and no unacceptable regression when a production comparison is available.
@@ -448,7 +451,19 @@ Quality gates require ROC-AUC ≥ 0.70, Recall ≥ 0.60, data validation, model 
 GitHub is the source of truth for application code and deployment configuration.
 
 ```text
-GitHub → CI → Bundle validation → DEV → STAGING → PRODUCTION
+Developer
+   ↓
+GitHub
+   ↓
+CI/CD
+   ↓
+Databricks Bundle Validation
+   ↓
+Databricks DEV
+   ↓
+STAGING
+   ↓
+PRODUCTION
 ```
 
 Credentials and tokens must never be committed.
@@ -461,6 +476,7 @@ Credentials and tokens must never be committed.
 - Repair failed candidates instead of unnecessarily abandoning them.
 - Preserve rollback paths.
 - Match infrastructure to workload requirements.
+- Prefer the minimum architecture that satisfies the requirements.
 - Minimize patient data in logs and telemetry.
 
 Detailed engineering investigations belong in `docs/`; the README records the current verified architecture and status.
