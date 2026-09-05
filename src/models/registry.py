@@ -20,11 +20,13 @@ from src.config import settings
 from src.serving.mlflow_model import ReadmissionServingModel
 
 MLFLOW_SERVING_REQUIREMENTS = [
-    "mlflow==2.13.1",
-    "pandas>=2.0.0",
-    "numpy>=1.24.0",
-    "scikit-learn>=1.3.0",
+    "mlflow==3.16.0",
+    "pandas==3.0.5",
+    "numpy==1.26.4",
+    "scikit-learn==1.3.0",
     "pydantic-settings>=2.0.0",
+    "scipy==1.11.1",
+    "cloudpickle==3.1.2",
 ]
 
 
@@ -84,11 +86,9 @@ def register_model(
             serving_predictions = serving_model.predict(None, serving_input)
             signature = infer_signature(serving_input, serving_predictions)
 
-            # The model is defined in src.serving.mlflow_model. Use the source
-            # package directory explicitly rather than infer_code_paths, because
             # Databricks executes the training notebook outside the repository's
-            # local working directory. MLflow preserves the package root under
-            # code/src, allowing cloudpickle to resolve the original import path.
+            # local working directory. Preserve the src package explicitly so
+            # cloudpickle can resolve the original import path when serving.
             source_root = Path(__file__).resolve().parents[1]
             model_info = mlflow.pyfunc.log_model(
                 name="model",
