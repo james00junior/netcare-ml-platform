@@ -44,6 +44,10 @@ def register_model(
 ) -> str:
     """Log a model and return its registered version.
 
+    When called from an active MLflow candidate run, model registration is
+    recorded as a nested run. This preserves explicit lineage from the
+    candidate evaluation run to the model artifact and registered version.
+
     When a fitted preprocessor is supplied, the registered artifact is a
     self-contained MLflow PyFunc model. It accepts raw feature records and
     applies deterministic cleaning plus the fitted training transformer before
@@ -56,7 +60,13 @@ def register_model(
     mlflow.set_registry_uri(settings.mlflow_registry_uri)
     mlflow.set_experiment(settings.experiment_name)
 
-    with mlflow.start_run() as run:
+    active_run = mlflow.active_run()
+    with mlflow.start_run(nested=active_run is not None) as run:
+        if active_run is not None:
+            mlflow.set_tag("candidate_run_id", active_run.info.run_id)
+            mlflow.set_tag("parent_run_id", active_run.info.run_id)
+            mlflow.set_tag("lifecycle_state", "registered")
+
         if params:
             mlflow.log_params(params)
         if metrics:
