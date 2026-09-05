@@ -27,10 +27,14 @@ async def lifespan(app: FastAPI):
     del app
     global predictor
 
-    if settings.is_production:
+    # A configured Databricks endpoint takes precedence in every environment.
+    # This allows local API integration testing against an isolated candidate
+    # endpoint while keeping the local predictor available when no endpoint is configured.
+    if settings.databricks_serving_endpoint or settings.databricks_serving_token:
         if not settings.databricks_serving_endpoint or not settings.databricks_serving_token:
             raise RuntimeError(
-                "Production requires DATABRICKS_SERVING_ENDPOINT and " "DATABRICKS_SERVING_TOKEN."
+                "Databricks serving requires both DATABRICKS_SERVING_ENDPOINT "
+                "and DATABRICKS_SERVING_TOKEN."
             )
         predictor = DatabricksServingClient(
             endpoint_url=settings.databricks_serving_endpoint,
@@ -52,7 +56,7 @@ async def lifespan(app: FastAPI):
         else:
             print(
                 "WARNING: Local model or fitted preprocessor not found under artifacts/. "
-                "Endpoints will return 503 until both are available."
+                "Endpoints will return 503 until a backend is configured."
             )
 
     yield
@@ -84,8 +88,6 @@ def _predict_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         raise HTTPException(status_code=503, detail="Model serving backend not available")
 
     try:
-        if isinstance(predictor, DatabricksServingClient):
-            return predictor.predict(records)
         return predictor.predict(records)
     except DatabricksServingError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -99,7 +101,7 @@ def health() -> HealthResponse:
     if isinstance(predictor, ReadmissionPredictor):
         model_version = predictor.model_version
     elif isinstance(predictor, DatabricksServingClient):
-        model_version = "champion"
+        model_version = "databricks-serving"
 
     return HealthResponse(
         status="ok" if predictor is not None else "degraded",
@@ -110,14 +112,38 @@ def health() -> HealthResponse:
 
 
 @app.post(
+    "/v1/predictions/readmission",
+    response_model=PredictionResponse,
+    tags=["inference"],
+    dependencies=[Security(verify_api_key)],
+)
+def predict_readmission(request: PredictionRequest) -> PredictionResponse:
+    """Stable versioned integration contract for readmission prediction."""
+    result = _predict_records([request.features])[0]
+    return PredictionResponse(**result)
+
+
+@app.post(
+    "/v1/predictions/readmission/batch",
+    response_model=BatchPredictionResponse,
+    tags=["inference"],
+    dependencies=[Security(verify_api_key)],
+)
+def predict_readmission_batch(request: BatchPredictionRequest) -> BatchPredictionResponse:
+    """Stable versioned batch integration contract."""
+    results = _predict_records(request.records)
+    return BatchPredictionResponse(predictions=[PredictionResponse(**r) for r in results])
+
+
+# Backward-compatible development routes retained while the versioned contract is adopted.
+@app.post(
     "/predict",
     response_model=PredictionResponse,
     tags=["inference"],
     dependencies=[Security(verify_api_key)],
 )
 def predict(request: PredictionRequest) -> PredictionResponse:
-    result = _predict_records([request.features])[0]
-    return PredictionResponse(**result)
+    return predict_readmission(request)
 
 
 @app.post(
@@ -127,8 +153,7 @@ def predict(request: PredictionRequest) -> PredictionResponse:
     dependencies=[Security(verify_api_key)],
 )
 def predict_batch(request: BatchPredictionRequest) -> BatchPredictionResponse:
-    results = _predict_records(request.records)
-    return BatchPredictionResponse(predictions=[PredictionResponse(**r) for r in results])
+    return predict_readmission_batch(request)
 
 
 @app.get("/", tags=["ops"])
