@@ -6,6 +6,7 @@ depend directly on MLflow APIs. Supports Databricks Unity Catalog
 with aliases for governed candidate/champion lifecycle management.
 """
 
+from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,10 @@ from mlflow.models import infer_signature
 from src.config import settings
 from src.serving.mlflow_model import ReadmissionServingModel
 
+
+# These are only fallbacks. Production artifacts build their requirements from
+# the actual training environment below so sklearn/cloudpickle serialization is
+# reproduced exactly by Databricks Model Serving.
 MLFLOW_SERVING_REQUIREMENTS = [
     "mlflow==3.16.0",
     "pandas==3.0.5",
@@ -28,6 +33,27 @@ MLFLOW_SERVING_REQUIREMENTS = [
     "scipy==1.11.1",
     "cloudpickle==3.1.2",
 ]
+
+
+def _serving_requirements() -> list[str]:
+    """Return exact versions of serialization-sensitive training dependencies.
+
+    Databricks Model Serving creates a fresh Python environment. Pinning the
+    versions from the training environment prevents sklearn/cloudpickle model
+    deserialization failures caused by incompatible internal sklearn classes.
+    The function intentionally covers only dependencies used by the serving
+    artifact, keeping the serving environment deterministic and minimal.
+    """
+    requirements = [
+        f"mlflow=={package_version('mlflow')}",
+        f"pandas=={package_version('pandas')}",
+        f"numpy=={package_version('numpy')}",
+        f"scikit-learn=={package_version('scikit-learn')}",
+        f"scipy=={package_version('scipy')}",
+        f"cloudpickle=={package_version('cloudpickle')}",
+        f"pydantic-settings=={package_version('pydantic-settings')}",
+    ]
+    return requirements
 
 
 def register_model(
@@ -104,7 +130,7 @@ def register_model(
                 name="model",
                 python_model=serving_model,
                 code_paths=[str(source_root)],
-                pip_requirements=MLFLOW_SERVING_REQUIREMENTS,
+                pip_requirements=_serving_requirements(),
                 signature=signature,
                 input_example=serving_input.head(2) if hasattr(serving_input, "head") else None,
                 registered_model_name=registered_model_name,
