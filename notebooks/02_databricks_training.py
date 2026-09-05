@@ -9,7 +9,12 @@
 import os
 import sys
 
+import cloudpickle
 import mlflow
+import numpy
+import pandas
+import scipy
+import sklearn
 
 # The bundle syncs src/ beside notebooks/. Add the bundle root to imports.
 notebook_path = dbutils.notebook.entry_point.getDbutils().notebook().getContext().notebookPath().get()
@@ -51,6 +56,20 @@ print("Catalog:", catalog_name)
 print("Experiment:", experiment_name)
 print("Registered model:", registered_model_name)
 print("Raw data:", raw_data_path)
+
+# Capture the actual training environment rather than inferring it from the
+# project requirements. These values become MLflow lineage metadata and are
+# used to keep the serving environment compatible with the training artifact.
+training_runtime = {
+    "python_version": sys.version.split()[0],
+    "mlflow_version": mlflow.__version__,
+    "scikit_learn_version": sklearn.__version__,
+    "numpy_version": numpy.__version__,
+    "pandas_version": pandas.__version__,
+    "scipy_version": scipy.__version__,
+    "cloudpickle_version": cloudpickle.__version__,
+}
+print("Training runtime:", training_runtime)
 
 # Fail early with a precise configuration error rather than allowing MLflow to
 # fail later with an opaque namespace error.
@@ -131,6 +150,7 @@ with mlflow.start_run(run_name="readmission-candidate") as run:
             "lifecycle_state": "candidate",
             "preprocessing": "fitted-on-training-data-only",
             "data_source": raw_data_path,
+            **training_runtime,
         }
     )
     candidate_run_id = run.info.run_id
