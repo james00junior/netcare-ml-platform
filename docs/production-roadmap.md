@@ -15,7 +15,7 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 | Phase 6 | Model Registry + Validation Gates | **COMPLETE / FROZEN** |
 | Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE / FROZEN** |
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
-| Phase 9 | Cloud Run Integration API | **CORE INTEGRATION VALIDATED — CLOUD RUN / API GATEWAY PENDING** |
+| Phase 9 | Existing-System Integration via Databricks Serving | **REDESIGNED — IN PROGRESS** |
 | Phase 10 | Security + Secrets + IAM | **PENDING** |
 | Phase 11 | Monitoring + Observability | **PENDING** |
 | Phase 12 | Drift + Retraining | **PENDING** |
@@ -23,22 +23,33 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 
 **Freeze rule:** Phases 1–8 are closed. Their validated implementation is not modified while Phase 9–13 work proceeds. The protected v1 production baseline is never touched.
 
-## Phase 8 — Production Model Serving
+## Architecture Decision — Simplified Databricks-Centric Serving
 
-The first serving implementation uses **Databricks Model Serving** rather than introducing another serving platform unnecessarily.
+The assessment does not require a separate Cloud Run or API Gateway layer. Databricks Model Serving already provides the production model-serving boundary required for the readmission prediction workload.
+
+The simplified architecture is:
 
 ```text
-Client System
-      │ HTTPS
-      ▼
-Databricks Serving Endpoint
-      │
-      ▼
-Production ML Model
-      │
-      ▼
-Prediction
+Existing Hospital / Client System
+              │
+              │ HTTPS + JSON
+              ▼
+      Databricks Model Serving
+              │
+              ▼
+          Model v8
+              │
+              ▼
+          Prediction
 ```
+
+GitHub remains the source of truth for application code and deployment configuration. GCS remains the data-storage layer already implemented in Phase 3. Databricks remains the primary ML platform for workflows, MLflow, Unity Catalog, registry, governance, and serving.
+
+**Decision:** do not introduce Cloud Run or GCP API Gateway unless a concrete future requirement justifies a separate integration boundary, custom API orchestration, protocol transformation, or API-management capability.
+
+## Phase 8 — Production Model Serving
+
+The validated serving implementation uses Databricks Model Serving.
 
 ### Validated milestone: Serving v2 → Registry Model v8
 
@@ -79,7 +90,9 @@ workload:             Small / CPU
 scale to zero:        enabled
 ```
 
-Direct inference was successfully validated using the exact 28-field model contract. Observed response:
+Direct inference was successfully validated using the exact 28-field model contract.
+
+Observed response:
 
 ```text
 predicted_label: 0
@@ -90,131 +103,84 @@ model_version: champion
 
 The endpoint configuration independently establishes that the served model is Registry version `8`. The response `model_version: champion` is produced by the serving wrapper and is not the serving entity version.
 
-**Phase 8 is now frozen.**
+**Phase 8 is frozen.**
 
-## Phase 9 — Integration Layer for Existing Systems
+## Phase 9 — Existing-System Integration
 
-Real client systems should not depend directly on internal ML infrastructure.
+Phase 9 is redesigned around the already validated Databricks serving boundary rather than adding a separate Cloud Run/API Gateway layer.
 
 ```text
 Existing Hospital System
           │
-          ▼
-     GCP API Gateway
-          │
-          ▼
-Integration Service
-   (Cloud Run / FastAPI)
-          │
+          │ HTTPS / JSON
           ▼
 Databricks Model Serving
+          │
+          ▼
+     Serving v2
+          │
+          ▼
+       Model v8
 ```
 
-### Validated milestone: FastAPI → Databricks inference boundary
+The external integration contract is based on the Databricks serving invocation API. The model remains independently versioned and governed in Unity Catalog.
 
-FastAPI on `0.0.0.0:8080` was validated with the governed Databricks backend.
+The existing FastAPI/Databricks client implementation remains useful as a local integration adapter and test harness, but it is **not required as production infrastructure** for the simplified architecture.
 
-Health:
+Phase 9 implementation will document and validate:
 
-```text
-status:         ok
-model_loaded:   true
-model_version:  databricks-serving
-environment:    dev
-```
-
-Single-record inference through FastAPI:
-
-```text
-predicted_label: 0
-probability: 0.30573779349128066
-model_version: champion
-risk_tier: medium
-```
-
-Batch inference through FastAPI:
-
-```text
-record 1 → label=0, probability=0.30573779349128066, risk_tier=medium
-record 2 → label=0, probability=0.24432526104648977, risk_tier=low
-```
-
-The complete validated local integration boundary is:
-
-```text
-FastAPI :8080
-      ↓
-DatabricksServingClient
-      ↓
-Serving v2
-      ↓
-Registry Model v8
-      ↓
-Prediction
-```
-
-**Phase 9 core inference integration is now frozen.** Remaining Phase 9 work is infrastructure deployment only: Cloud Run and GCP API Gateway.
-
-Client contract:
-
-```text
-POST /v1/predictions/readmission
-```
-
-The integration service provides:
-
-- API versioning
-- request validation
+- request/response contract
 - authentication
-- transformation
+- request validation
 - error handling
-- model endpoint communication
-- response formatting
+- client-system integration
+- serving endpoint versioning
+- rollback-compatible model promotion
+
+### Phase 9 success criterion
+
+A representative client system can authenticate to Databricks Model Serving and successfully obtain a prediction from the validated Serving v2 / Model v8 endpoint without requiring Cloud Run or API Gateway.
 
 ## Phase 10 — Security and Secrets
 
-GCP-native security controls:
+Security will be implemented around the actual production boundary.
 
 ```text
-Google Secret Manager
-       │
-       ▼
-Databricks / Cloud Run / CI-CD
+Client Identity / Service Principal
+              │
+              ▼
+     Databricks Authentication
+              │
+              ▼
+        Model Serving
 ```
 
-Never store API keys, GCP credentials, Databricks tokens, or database passwords in committed `.env` files, Python source, or Databricks notebooks.
+Never store API keys, Databricks tokens, GCP credentials, or database passwords in committed `.env` files, Python source, or notebooks.
 
-Use:
-
-- IAM
-- service accounts
-- Google Secret Manager
-- Databricks secrets
+Use least-privilege identity, service principals, Databricks secrets, and appropriate GCP controls for the GCS data layer.
 
 ## Phase 11 — Monitoring and Observability
 
-Three monitoring layers will be implemented.
+Monitoring will operate at three levels.
 
-### Infrastructure
+### Platform
 
-- API latency
+- serving latency
+- request volume
 - errors
-- uptime
-- throughput
-
-Use Cloud Monitoring and Cloud Logging.
+- endpoint availability
 
 ### Data
 
 - missing values
 - schema changes
+- feature distribution changes
 - data drift
-- distribution changes
 
 ### Model
 
 - prediction distribution
-- model confidence
+- confidence
 - actual outcomes
 - ROC-AUC
 - Recall
@@ -230,6 +196,7 @@ Production Data
 Drift Detection
       │
       ├── No drift → Continue
+      │
       ▼
 Significant drift
       │
@@ -247,30 +214,42 @@ Better
 Register New Version
       │
       ▼
-Deploy
+Controlled Serving Release
 ```
 
-Retraining can be scheduled, triggered by drift, or triggered by new labelled data.
+Retraining can be scheduled, triggered by drift, or triggered by new labelled outcomes.
 
 ## Phase 13 — Production Model Release Strategy
 
-Production releases will support gradual traffic shifting and rollback.
+Production releases will use Databricks Model Serving traffic controls and versioned model artifacts.
 
 ```text
-Model v1 → Production
-Model v1 → 90%   / Model v2 → 10%
-Model v1 → 50%   / Model v2 → 50%
-Model v2 → 100%
+Trusted Model
+     │
+     ▼
+Candidate Model
+     │
+     ▼
+Validation Gates
+     │
+     ▼
+Controlled Traffic Shift
+     │
+     ▼
+Production
 ```
 
-Rollback returns traffic to the previously trusted production model.
+Rollback returns traffic to the previously trusted model version.
 
 ## Complete lifecycle
 
 ```text
-Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
-                                                        ↓
-Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11 → Phase 12 → Phase 13
+Data → Validation → Training → MLflow
+     → Quality Gate → Unity Catalog Registry
+     → Databricks Model Serving
+     → Existing System Integration
+     → Monitoring → Drift Detection
+     → Retraining → Validation → Controlled Release
 ```
 
-Phases 1–8 are frozen. Phase 9 core inference integration is frozen. Remaining work begins with Phase 9 Cloud Run deployment and GCP API Gateway exposure, followed by Phases 10–13.
+Phases 1–8 remain frozen. Phase 9 is now the Databricks-native existing-system integration boundary. Cloud Run and API Gateway are deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
