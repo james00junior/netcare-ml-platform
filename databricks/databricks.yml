@@ -16,8 +16,11 @@ variables:
     description: Unity Catalog registered model name
     default: netcareaidatabricks.default.readmission_model
   serving_model_version:
-    description: Registered model version deployed to the serving endpoint
+    description: Registered model version deployed to the protected serving endpoint
     default: "1"
+  serving_candidate_model_version:
+    description: Explicit registered model version deployed only to the isolated Phase 7 candidate endpoint
+    default: "8"
 
 artifacts:
   default:
@@ -45,7 +48,7 @@ targets:
     workspace:
       host: ${DATABRICKS_HOST_STAGING}
     variables:
-      catalog_name: netcareaidabricks
+      catalog_name: netcareaidatabricks
 
   prod:
     mode: production
