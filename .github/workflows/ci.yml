@@ -13,11 +13,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.16"
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,api]"
+      - name: Record tool versions
+        run: |
+          python --version
+          pip --version
+          black --version
+          ruff --version
+          pytest --version
       - name: Lint
         run: ruff check src tests api
       - name: Format check
