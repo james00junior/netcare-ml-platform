@@ -2,9 +2,43 @@
 
 import pandas as pd
 import pytest
+from pydantic import ValidationError
 
 from src.serving.databricks_client import DatabricksServingClient, DatabricksServingError
 from src.serving.mlflow_model import ReadmissionServingModel
+from src.serving.schemas import PredictionRequest
+
+
+VALID_FEATURES = {
+    "age": 67,
+    "sex": "Female",
+    "admission_type": "Emergency",
+    "admission_source": "Emergency Room",
+    "discharge_disposition": "Home",
+    "length_of_stay_days": 4,
+    "icu_hours": 12,
+    "num_prior_admissions_12m": 1,
+    "num_ed_visits_12m": 2,
+    "primary_diagnosis_group": "Circulatory",
+    "secondary_diagnosis_count": 2,
+    "elixhauser_score": 3,
+    "wbc": 8.4,
+    "has_diabetes": 1,
+    "has_hypertension": 1,
+    "has_ckd": 0,
+    "has_copd": 0,
+    "has_heart_failure": 1,
+    "num_medications": 8,
+    "had_surgery": 0,
+    "had_icu_stay": 1,
+    "discharge_to_home": 1,
+    "followup_booked": 1,
+    "payer_type": "Private",
+    "creatinine": 1.2,
+    "hemoglobin": 12.5,
+    "sodium": 138.0,
+    "potassium": 4.1,
+}
 
 
 class FakePreprocessor:
@@ -84,3 +118,32 @@ def test_databricks_client_validates_response(monkeypatch):
 
     with pytest.raises(DatabricksServingError, match="did not contain predictions"):
         client.predict([{"age": 65}])
+
+
+def test_prediction_request_accepts_canonical_contract():
+    request = PredictionRequest(features=VALID_FEATURES)
+
+    assert request.features.age == 67
+    assert request.features.creatinine == 1.2
+
+
+def test_prediction_request_rejects_missing_required_feature():
+    invalid = VALID_FEATURES.copy()
+    del invalid["age"]
+
+    with pytest.raises(ValidationError):
+        PredictionRequest(features=invalid)
+
+
+def test_prediction_request_rejects_unknown_feature():
+    invalid = VALID_FEATURES | {"patient_id": "p1"}
+
+    with pytest.raises(ValidationError):
+        PredictionRequest(features=invalid)
+
+
+def test_prediction_request_rejects_invalid_binary_feature():
+    invalid = VALID_FEATURES | {"has_diabetes": 2}
+
+    with pytest.raises(ValidationError):
+        PredictionRequest(features=invalid)
