@@ -120,7 +120,7 @@ def verify_api_key(api_key: str | None = Security(api_key_header)) -> None:
         )
 
 
-def _predict_records(records: list[Any], request_id: str | None = None) -> list[dict[str, Any]]:
+def _predict_records(records: list[Any]) -> list[dict[str, Any]]:
     """Route validated feature records to the configured inference backend."""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model serving backend not available")
@@ -130,8 +130,6 @@ def _predict_records(records: list[Any], request_id: str | None = None) -> list[
     ]
 
     try:
-        if isinstance(predictor, DatabricksServingClient):
-            return predictor.predict(raw_records, request_id=request_id)
         return predictor.predict(raw_records)
     except DatabricksServingError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -163,7 +161,7 @@ def health() -> HealthResponse:
 )
 def predict_readmission(request: PredictionRequest, http_request: Request) -> PredictionResponse:
     """Stable versioned integration contract for readmission prediction."""
-    result = _predict_records([request.features], request_id=http_request.state.request_id)[0]
+    result = _predict_records([request.features])[0]
     return PredictionResponse(**result)
 
 
@@ -177,7 +175,7 @@ def predict_readmission_batch(
     request: BatchPredictionRequest, http_request: Request
 ) -> BatchPredictionResponse:
     """Stable versioned batch integration contract."""
-    results = _predict_records(request.records, request_id=http_request.state.request_id)
+    results = _predict_records(request.records)
     return BatchPredictionResponse(predictions=[PredictionResponse(**r) for r in results])
 
 
@@ -197,7 +195,9 @@ def predict(request: PredictionRequest, http_request: Request) -> PredictionResp
     tags=["inference"],
     dependencies=[Security(verify_api_key)],
 )
-def predict_batch(request: BatchPredictionRequest, http_request: Request) -> BatchPredictionResponse:
+def predict_batch(
+    request: BatchPredictionRequest, http_request: Request
+) -> BatchPredictionResponse:
     return predict_readmission_batch(request, http_request)
 
 
