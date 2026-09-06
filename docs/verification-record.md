@@ -29,59 +29,79 @@ Candidate registered model version: 8
 MLflow run: bf12e7f602084e78acdab4797c40c2b2
 ```
 
-Phase 1–9 implementations are frozen. Candidate development must not modify the protected v1 endpoint or silently change the serving/version configuration.
+Phases 1–11 are frozen for their validated scopes. Candidate development must not modify the protected v1 endpoint or silently change the serving/version configuration.
 
-## Latest repository quality checkpoint
+## Phase 11 completion checkpoint — 2026-09-06
 
-The latest monitoring-code checkpoint is:
+Live Databricks evidence supplied for this checkpoint:
 
 ```text
-Commit: cc47b912efd86353f93c2115945e74cb348faa91
-Message: Fix monitoring exports lint ordering
+Protected endpoint: cidev-netcare-readmission
+  served model: readmission_model-1
+  registered version: 1
+  state: READY
+  config update: NOT_UPDATING
+  deployment: DEPLOYMENT_READY
+  traffic: 100%
+  usage tracking: enabled
+
+Candidate endpoint: cidev-netcare-readmission-candidate
+  served model: readmission_model-8
+  registered version: 8
+  served entity ID: 362c5dbb1cf448789afbb4ee6a687712
+  state: READY
+  config update: NOT_UPDATING
+  deployment: DEPLOYMENT_READY
+  traffic: 100% within candidate endpoint
+  usage tracking: enabled
 ```
 
-For this exact commit:
+The governed query against `system.serving.endpoint_usage` succeeded with schema:
 
 ```text
+request_time
+status_code
+requester
+databricks_request_id
+client_request_id
+served_entity_id
+```
+
+For the exact v8 served entity ID `362c5dbb1cf448789afbb4ee6a687712`, the query returned:
+
+```text
+status: SUCCEEDED
+total_row_count: 0
+total_chunk_count: 0
+truncated: false
+```
+
+Therefore:
+
+- serving telemetry is verified;
+- serving system-table access is verified;
+- the v8 served-entity identity is verified;
+- v8 request-record population is **not** observed;
+- prediction/probability fields are not inferred from the usage table;
+- labelled outcomes are not inferred from serving telemetry.
+
+The repository monitoring contracts are implemented and tested for the evidence boundary, including serving health, governed serving queries, missing-metric preservation, data quality, drift, and labelled-performance calculations.
+
+**Phase 11 status: COMPLETE / FROZEN FOR VERIFIED MONITORING SCOPE.**
+
+This completion does not claim a live prediction-record pipeline, labelled-outcome source, production alert configuration, or production dashboard deployment where those were not evidenced.
+
+## Latest repository quality checkpoint before Phase 11 documentation close
+
+```text
+Commit: 2f8caa30f59d5c3e9036baf20b37b6a5c16ed5fc
+Message: Fix governed monitoring source table qualification
+
 GitHub Actions CI: PASS
 GitHub Actions Deploy Dev: PASS
 ```
 
-The successful CI run completed lint, format checking, tests, and Codecov steps. The successful Deploy Dev run completed tests, Databricks CLI setup, bundle validation, and bundle deployment.
-
-**Rule:** never use the status of a different commit to declare the current commit green.
-
-## Monitoring evidence checkpoint — 2026-09-06
-
-Verified live candidate identity:
-
-```text
-Endpoint:                 cidev-netcare-readmission-candidate
-Served entity:            readmission_model-8
-Registry model:           netcareaidatabricks.default.readmission_model
-Registry version:         8
-Served entity ID:         362c5dbb1cf448789afbb4ee6a687712
-Endpoint config version:  1
-Endpoint state:            READY
-Config update state:       NOT_UPDATING
-Deployment state:          DEPLOYMENT_READY
-Workload:                  Small / CPU
-Scale to zero:             enabled
-```
-
-Verified serving system-table surfaces:
-
-```text
-system.serving.endpoint_usage
-system.serving.served_entities
-```
-
-The exact v8 `served_entity_id` query against `system.serving.endpoint_usage` succeeded but returned zero rows. Therefore:
-
-- system-table access is verified;
-- the exact v8 served entity is verified;
-- v8 request-record population is **not** verified;
-- no inference-record source or schema is assumed beyond the observed system-table schema.
+The exact commit passed the repository lint, format, test, and deployment workflow stages. Phase 11 documentation changes are documentation-only checkpoint updates following that verified implementation checkpoint.
 
 ## Change procedure
 
@@ -143,16 +163,12 @@ After each verified milestone, update:
 
 Documentation must distinguish **implemented**, **queryable**, **observed**, **validated**, and **complete**. These terms are not interchangeable.
 
-## Next approved Phase 11 sequence
+## Next lifecycle phase
 
-The next work is not another CI/debugging loop. The repository is green at the latest verified commit. Continue Phase 11 in this order:
+Phase 11 is frozen for the verified monitoring scope. The next active work is Phase 12:
 
 ```text
-11.2  Establish governed monitoring data
-11.3  Implement health and data-quality checks
-11.4  Implement prediction and drift monitoring
-11.5  Implement labelled-outcome evaluation
-11.6  Add alerts and operational dashboard
+Phase 12 — Drift + Retraining
 ```
 
-Each step requires evidence and a checkpoint before the next step begins.
+Phase 12 must first inspect the actual Databricks training/retraining job and verified data source before adding orchestration. It must consume validated monitoring signals rather than inventing a new monitoring path.
