@@ -4,7 +4,10 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from src.serving.databricks_client import DatabricksServingClient, DatabricksServingError
+from src.serving.databricks_client import (
+    DatabricksServingClient,
+    DatabricksServingError,
+)
 from src.serving.mlflow_model import ReadmissionServingModel
 from src.serving.schemas import PredictionRequest
 
@@ -97,14 +100,14 @@ def test_serving_model_rejects_empty_input():
 
 
 def test_databricks_client_rejects_empty_records():
-    client = DatabricksServingClient("https://example.com/invocations", "token")
+    client = DatabricksServingClient("https://test.invalid/invocations", "token")
 
     with pytest.raises(ValueError, match="At least one record"):
         client.predict([])
 
 
 def test_databricks_client_validates_response(monkeypatch):
-    client = DatabricksServingClient("https://example.com/invocations", "token")
+    client = DatabricksServingClient("https://test.invalid/invocations", "token")
 
     class Response:
         def raise_for_status(self):
@@ -117,6 +120,33 @@ def test_databricks_client_validates_response(monkeypatch):
 
     with pytest.raises(DatabricksServingError, match="did not contain predictions"):
         client.predict([{"age": 65}])
+
+
+def test_databricks_client_sends_request_id_without_payload_logging(monkeypatch):
+    client = DatabricksServingClient("https://test.invalid/invocations", "token")
+    captured = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"predictions": [{"predicted_label": 0, "probability": 0.2, "risk_tier": "low"}]}
+
+    def fake_post(url, **kwargs):
+        captured["url"] = url
+        captured["headers"] = kwargs["headers"]
+        captured["json"] = kwargs["json"]
+        return Response()
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    result = client.predict([{"age": 65}], request_id="request-123")
+
+    assert result[0]["risk_tier"] == "low"
+    assert captured["url"] == "https://test.invalid/invocations"
+    assert captured["headers"] == {"Authorization": "Bearer token"}
+    assert captured["json"] == {"dataframe_records": [{"age": 65}]}
 
 
 def test_prediction_request_accepts_canonical_contract():
