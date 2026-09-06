@@ -12,14 +12,12 @@ from typing import Any
 
 import joblib
 import mlflow
-import mlflow.sklearn
-import mlflow.xgboost
+from mlflow import sklearn, xgboost
 from mlflow.exceptions import MlflowException
 from mlflow.models import infer_signature
 
 from src.config import settings
 from src.serving.mlflow_model import ReadmissionServingModel
-
 
 # These are only fallbacks. Production artifacts build their requirements from
 # the actual training environment below so sklearn/cloudpickle serialization is
@@ -150,9 +148,9 @@ def register_model(
                 "registered_model_name": registered_model_name,
             }
             if "XGB" in model_type:
-                model_info = mlflow.xgboost.log_model(model, **model_log_kwargs)
+                model_info = xgboost.log_model(model, **model_log_kwargs)
             else:
-                model_info = mlflow.sklearn.log_model(model, **model_log_kwargs)
+                model_info = sklearn.log_model(model, **model_log_kwargs)
 
         if artifacts:
             for name, path in artifacts.items():

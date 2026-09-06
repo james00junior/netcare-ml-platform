@@ -82,13 +82,17 @@ def verify_api_key(api_key: str | None = Security(api_key_header)) -> None:
         )
 
 
-def _predict_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Route prediction requests to the configured local or governed backend."""
+def _predict_records(records: list[Any]) -> list[dict[str, Any]]:
+    """Route validated feature records to the configured inference backend."""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model serving backend not available")
 
+    raw_records = [
+        record.model_dump() if hasattr(record, "model_dump") else record for record in records
+    ]
+
     try:
-        return predictor.predict(records)
+        return predictor.predict(raw_records)
     except DatabricksServingError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValueError as exc:
