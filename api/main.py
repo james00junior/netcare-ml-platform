@@ -33,7 +33,6 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
         request_id = request.headers.get("X-Request-ID") or str(uuid4())
         request.state.request_id = request_id
         started = perf_counter()
-
         logger.info(
             "API request started",
             extra={
@@ -43,7 +42,6 @@ class RequestObservabilityMiddleware(BaseHTTPMiddleware):
                 "path": request.url.path,
             },
         )
-
         response = await call_next(request)
         duration_ms = round((perf_counter() - started) * 1000, 2)
         response.headers["X-Request-ID"] = request_id
@@ -78,11 +76,13 @@ async def lifespan(app: FastAPI):
             token=settings.databricks_serving_token,
             timeout=settings.databricks_serving_timeout,
         )
-        logger.info("Configured governed Databricks Model Serving backend", extra={"event": "backend_configured"})
+        logger.info(
+            "Configured governed Databricks Model Serving backend",
+            extra={"event": "backend_configured"},
+        )
     else:
         model_path = Path(settings.artifacts_path) / "gbdt_model_predictions.joblib"
         preprocessor_path = Path(settings.artifacts_path) / "gbdt_model_preprocessor.joblib"
-
         if model_path.exists() and preprocessor_path.exists():
             predictor = ReadmissionPredictor(
                 model_path=model_path,
@@ -130,7 +130,9 @@ def _predict_records(records: list[Any], request_id: str | None = None) -> list[
     ]
 
     try:
-        return predictor.predict(raw_records, request_id=request_id)
+        if isinstance(predictor, DatabricksServingClient):
+            return predictor.predict(raw_records, request_id=request_id)
+        return predictor.predict(raw_records)
     except DatabricksServingError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValueError as exc:
