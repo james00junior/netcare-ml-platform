@@ -75,9 +75,7 @@ class DatabricksServingClient:
                 "Databricks serving response did not contain predictions",
                 extra={"event": "upstream_response_invalid", **log_context},
             )
-            raise DatabricksServingError(
-                "Databricks serving response did not contain predictions."
-            )
+            raise DatabricksServingError("Databricks serving response did not contain predictions.")
 
         result = [self._normalise_prediction(item) for item in predictions]
         logger.info(
@@ -90,9 +88,7 @@ class DatabricksServingClient:
     def _normalise_prediction(item: Any) -> dict[str, Any]:
         """Validate the serving response shape before returning it to the API."""
         if not isinstance(item, dict):
-            raise DatabricksServingError(
-                "Databricks returned an invalid prediction item."
-            )
+            raise DatabricksServingError("Databricks returned an invalid prediction item.")
 
         required = {"predicted_label", "probability", "risk_tier"}
         if not required.issubset(item):
