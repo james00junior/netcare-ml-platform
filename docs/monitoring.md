@@ -17,18 +17,50 @@ The monitoring architecture remains Databricks-centric and does not introduce Cl
 
 ## Verified live evidence — 2026-09-06
 
-The first Phase 11 telemetry inspection was performed against the isolated candidate endpoint:
+The Phase 11 telemetry inspection has now been performed against both the protected baseline and isolated candidate endpoint:
 
 ```text
+Protected baseline
+Endpoint:       cidev-netcare-readmission
+Served model:   readmission_model-1
+Registry model: netcareaidatabricks.default.readmission_model
+Model version:  1
+
+Candidate
 Endpoint:       cidev-netcare-readmission-candidate
 Served model:   readmission_model-8
 Registry model: netcareaidatabricks.default.readmission_model
 Model version:  8
 ```
 
-### Observed endpoint metrics
+### Observed endpoint metrics — v1 protected baseline
 
-The live Prometheus/OpenMetrics export exposed the following metrics:
+The live Prometheus/OpenMetrics export for `cidev-netcare-readmission` exposed:
+
+```text
+request_count_total
+request_4xx_count_total
+request_5xx_count_total
+request_latency_ms
+```
+
+Observed values in the supplied telemetry snapshot, timestamped `1788718020000`:
+
+| Metric | Observed value |
+|---|---:|
+| `request_count_total` | `0.0` |
+| `request_4xx_count_total` | `0.0` |
+| `request_5xx_count_total` | `0.0` |
+| `request_latency_ms_count` | `0.0` |
+| `request_latency_ms_sum` | `0.0` |
+
+All reported request-latency histogram buckets from `5` ms through `600000` ms and `+Inf` were `0.0` in this snapshot.
+
+This is a telemetry snapshot with no recorded requests in the reported minute. It is not evidence that the endpoint cannot serve requests.
+
+### Observed endpoint metrics — v8 candidate
+
+The live Prometheus/OpenMetrics export for `cidev-netcare-readmission-candidate` exposed:
 
 ```text
 cpu_usage_percentage
@@ -52,30 +84,51 @@ Observed values in the supplied telemetry snapshot:
 | `request_5xx_count_total` | `0.0` |
 | `provisioned_concurrent_requests_total` | `4.0` |
 
-The request-latency and model-queue-time histograms were also exposed. Their reported snapshot contained zero observations (`count=0`, `sum=0`). The snapshot therefore represents a minute with no recorded requests; it is not evidence that the endpoint cannot serve requests. A separate live v8 inference request has already been verified successfully.
+The request-latency and model-queue-time histograms were also exposed. Their reported snapshot contained zero observations (`count=0`, `sum=0`). A separate live v8 inference request has already been verified successfully.
+
+### v1 versus v8 telemetry comparison
+
+The two live exports confirm that both endpoints expose request/error and latency telemetry, while the v8 candidate export additionally exposed CPU, memory, provisioned-concurrency, and model-queue-time metrics in the observed snapshot.
+
+This comparison is limited to the exact metrics returned by the two supplied exports. It does not establish that metrics absent from one snapshot are unavailable from the workspace generally.
 
 ### Observed endpoint configuration
 
-The live endpoint GET response verified:
+The live endpoint GET responses previously verified:
 
 ```text
-config_version:       1
-endpoint state:       READY
-config update:        NOT_UPDATING
-deployment:            DEPLOYMENT_READY
-served model:         readmission_model-8
-registered model:     netcareaidatabricks.default.readmission_model
-registered version:   8
-traffic:              100%
-workload:             Small / CPU
-scale to zero:        enabled
-route optimized:      false
-permission:           CAN_MANAGE
+v1 endpoint: cidev-netcare-readmission
+  config_version:       1
+  endpoint state:       READY
+  config update:        NOT_UPDATING
+  deployment:           DEPLOYMENT_READY
+  served model:         readmission_model-1
+  registered model:     netcareaidatabricks.default.readmission_model
+  registered version:   1
+  traffic:              100%
+  workload:             Small / CPU
+  scale to zero:        enabled
+  route optimized:      false
+  permission:           CAN_MANAGE
+
+v8 candidate endpoint: cidev-netcare-readmission-candidate
+  config_version:       1
+  endpoint state:       READY
+  config update:        NOT_UPDATING
+  deployment:           DEPLOYMENT_READY
+  served model:         readmission_model-8
+  registered model:     netcareaidatabricks.default.readmission_model
+  registered version:   8
+  traffic:              100% within candidate endpoint
+  workload:             Small / CPU
+  scale to zero:        enabled
+  route optimized:      false
+  permission:           CAN_MANAGE
 ```
 
-The returned endpoint configuration did not expose an inference-table configuration in the observed `config` object. This observation does **not** establish that no other monitoring or inference-record capability exists in the workspace. Inference-record sources, governed monitoring data, system tables, and permissions remain to be inspected.
+The returned endpoint configurations did not expose an inference-table configuration in the observed `config` objects. This observation does **not** establish that no other monitoring or inference-record capability exists in the workspace. Inference-record sources, governed monitoring data, system tables, and permissions remain to be inspected.
 
-No telemetry configuration change has been made as a result of this inspection.
+No telemetry configuration change has been made as a result of these inspections.
 
 ## Monitoring layers
 
@@ -228,7 +281,7 @@ Monitoring must follow the same security principles as the serving system:
 
 Identify the actual telemetry, endpoint metrics, inference records, system tables, and permissions available in the deployed Databricks environment.
 
-**Current status:** **IN PROGRESS.** Live endpoint metrics and candidate endpoint configuration have been observed and recorded. Inference-record sources, governed monitoring data, system tables, and permissions are not yet fully verified.
+**Current status:** **IN PROGRESS.** Live endpoint metrics for both the protected v1 baseline and isolated v8 candidate have been observed and recorded. Inference-record sources, governed monitoring data, system tables, and permissions are not yet fully verified.
 
 **Exit criterion:** observed source/schema documented with evidence.
 
