@@ -111,7 +111,5 @@ def monitoring_table_schema(table_name: str, columns: Iterable[str]) -> str:
     unknown = tuple(column for column in selected if column not in column_types)
     if unknown:
         raise ValueError(f"Unsupported monitoring columns: {unknown}")
-    definitions = ",\n    ".join(
-        f"`{column}` {column_types[column]}" for column in selected
-    )
+    definitions = ",\n    ".join(f"`{column}` {column_types[column]}" for column in selected)
     return f"CREATE TABLE IF NOT EXISTS {table} (\n    {definitions}\n) USING DELTA"
