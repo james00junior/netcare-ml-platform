@@ -2,13 +2,17 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from time import perf_counter
 from typing import Any
+from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Security, status
+from fastapi import FastAPI, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.config import settings
 from src.serving.databricks_client import DatabricksServingClient, DatabricksServingError
+from src.serving.observability import configure_logging
 from src.serving.predictor import ReadmissionPredictor
 from src.serving.schemas import (
     BatchPredictionRequest,
@@ -18,7 +22,43 @@ from src.serving.schemas import (
     PredictionResponse,
 )
 
+logger = configure_logging()
 predictor: ReadmissionPredictor | DatabricksServingClient | None = None
+
+
+class RequestObservabilityMiddleware(BaseHTTPMiddleware):
+    """Attach a correlation ID and emit privacy-safe request lifecycle events."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID") or str(uuid4())
+        request.state.request_id = request_id
+        started = perf_counter()
+
+        logger.info(
+            "API request started",
+            extra={
+                "event": "request_started",
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+            },
+        )
+
+        response = await call_next(request)
+        duration_ms = round((perf_counter() - started) * 1000, 2)
+        response.headers["X-Request-ID"] = request_id
+        logger.info(
+            "API request completed",
+            extra={
+                "event": "request_completed",
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+            },
+        )
+        return response
 
 
 @asynccontextmanager
@@ -27,9 +67,6 @@ async def lifespan(app: FastAPI):
     del app
     global predictor
 
-    # A configured Databricks endpoint takes precedence in every environment.
-    # This allows local API integration testing against an isolated candidate
-    # endpoint while keeping the local predictor available when no endpoint is configured.
     if settings.databricks_serving_endpoint or settings.databricks_serving_token:
         if not settings.databricks_serving_endpoint or not settings.databricks_serving_token:
             raise RuntimeError(
@@ -41,7 +78,7 @@ async def lifespan(app: FastAPI):
             token=settings.databricks_serving_token,
             timeout=settings.databricks_serving_timeout,
         )
-        print("Configured governed Databricks Model Serving backend.")
+        logger.info("Configured governed Databricks Model Serving backend", extra={"event": "backend_configured"})
     else:
         model_path = Path(settings.artifacts_path) / "gbdt_model_predictions.joblib"
         preprocessor_path = Path(settings.artifacts_path) / "gbdt_model_preprocessor.joblib"
@@ -52,11 +89,11 @@ async def lifespan(app: FastAPI):
                 preprocessor_path=preprocessor_path,
                 model_version="local-gbdt",
             )
-            print(f"Local model loaded from {model_path}")
+            logger.info("Local model loaded", extra={"event": "backend_configured"})
         else:
-            print(
-                "WARNING: Local model or fitted preprocessor not found under artifacts/. "
-                "Endpoints will return 503 until a backend is configured."
+            logger.warning(
+                "Local model or fitted preprocessor not found; inference is unavailable",
+                extra={"event": "backend_unavailable"},
             )
 
     yield
@@ -69,6 +106,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.add_middleware(RequestObservabilityMiddleware)
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -82,7 +120,7 @@ def verify_api_key(api_key: str | None = Security(api_key_header)) -> None:
         )
 
 
-def _predict_records(records: list[Any]) -> list[dict[str, Any]]:
+def _predict_records(records: list[Any], request_id: str | None = None) -> list[dict[str, Any]]:
     """Route validated feature records to the configured inference backend."""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model serving backend not available")
@@ -92,7 +130,7 @@ def _predict_records(records: list[Any]) -> list[dict[str, Any]]:
     ]
 
     try:
-        return predictor.predict(raw_records)
+        return predictor.predict(raw_records, request_id=request_id)
     except DatabricksServingError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValueError as exc:
@@ -121,9 +159,9 @@ def health() -> HealthResponse:
     tags=["inference"],
     dependencies=[Security(verify_api_key)],
 )
-def predict_readmission(request: PredictionRequest) -> PredictionResponse:
+def predict_readmission(request: PredictionRequest, http_request: Request) -> PredictionResponse:
     """Stable versioned integration contract for readmission prediction."""
-    result = _predict_records([request.features])[0]
+    result = _predict_records([request.features], request_id=http_request.state.request_id)[0]
     return PredictionResponse(**result)
 
 
@@ -133,21 +171,22 @@ def predict_readmission(request: PredictionRequest) -> PredictionResponse:
     tags=["inference"],
     dependencies=[Security(verify_api_key)],
 )
-def predict_readmission_batch(request: BatchPredictionRequest) -> BatchPredictionResponse:
+def predict_readmission_batch(
+    request: BatchPredictionRequest, http_request: Request
+) -> BatchPredictionResponse:
     """Stable versioned batch integration contract."""
-    results = _predict_records(request.records)
+    results = _predict_records(request.records, request_id=http_request.state.request_id)
     return BatchPredictionResponse(predictions=[PredictionResponse(**r) for r in results])
 
 
-# Backward-compatible development routes retained while the versioned contract is adopted.
 @app.post(
     "/predict",
     response_model=PredictionResponse,
     tags=["inference"],
     dependencies=[Security(verify_api_key)],
 )
-def predict(request: PredictionRequest) -> PredictionResponse:
-    return predict_readmission(request)
+def predict(request: PredictionRequest, http_request: Request) -> PredictionResponse:
+    return predict_readmission(request, http_request)
 
 
 @app.post(
@@ -156,8 +195,8 @@ def predict(request: PredictionRequest) -> PredictionResponse:
     tags=["inference"],
     dependencies=[Security(verify_api_key)],
 )
-def predict_batch(request: BatchPredictionRequest) -> BatchPredictionResponse:
-    return predict_readmission_batch(request)
+def predict_batch(request: BatchPredictionRequest, http_request: Request) -> BatchPredictionResponse:
+    return predict_readmission_batch(request, http_request)
 
 
 @app.get("/", tags=["ops"])
