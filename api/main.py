@@ -113,9 +113,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def verify_api_key(api_key: str | None = Security(api_key_header)) -> None:
     """Validate the optional API key when configured."""
-    if settings.api_key and (
-        api_key is None or api_key != settings.api_key.get_secret_value()
-    ):
+    if settings.api_key and api_key != settings.api_key.get_secret_value():
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key",
