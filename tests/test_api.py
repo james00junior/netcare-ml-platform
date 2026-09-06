@@ -77,14 +77,18 @@ def test_versioned_prediction_uses_databricks_backend(monkeypatch):
 
         def predict(self, records):
             assert records == [SAMPLE_FEATURES]
-            return [{
-                "predicted_label": 0,
-                "probability": 0.30573779349128066,
-                "risk_tier": "medium",
-                "model_version": "champion",
-            }]
+            return [
+                {
+                    "predicted_label": 0,
+                    "probability": 0.30573779349128066,
+                    "risk_tier": "medium",
+                    "model_version": "champion",
+                }
+            ]
 
-    monkeypatch.setattr(api_main.settings, "databricks_serving_endpoint", "https://example.test/invocations")
+    monkeypatch.setattr(
+        api_main.settings, "databricks_serving_endpoint", "https://example.test/invocations"
+    )
     monkeypatch.setattr(api_main.settings, "databricks_serving_token", "stub")
     monkeypatch.setattr(api_main, "DatabricksServingClient", FakeDatabricksServingClient)
     with TestClient(api_main.app) as client:
@@ -106,17 +110,44 @@ def test_versioned_batch_prediction_uses_databricks_backend(monkeypatch):
         def predict(self, records):
             assert records == [SAMPLE_FEATURES, SAMPLE_FEATURES]
             return [
-                {"predicted_label": 0, "probability": 0.30, "risk_tier": "medium", "model_version": "champion"},
-                {"predicted_label": 1, "probability": 0.82, "risk_tier": "high", "model_version": "champion"},
+                {
+                    "predicted_label": 0,
+                    "probability": 0.30,
+                    "risk_tier": "medium",
+                    "model_version": "champion",
+                },
+                {
+                    "predicted_label": 1,
+                    "probability": 0.82,
+                    "risk_tier": "high",
+                    "model_version": "champion",
+                },
             ]
 
-    monkeypatch.setattr(api_main.settings, "databricks_serving_endpoint", "https://example.test/invocations")
+    monkeypatch.setattr(
+        api_main.settings, "databricks_serving_endpoint", "https://example.test/invocations"
+    )
     monkeypatch.setattr(api_main.settings, "databricks_serving_token", "stub")
     monkeypatch.setattr(api_main, "DatabricksServingClient", FakeDatabricksServingClient)
     with TestClient(api_main.app) as client:
-        resp = client.post("/v1/predictions/readmission/batch", json={"records": [SAMPLE_FEATURES, SAMPLE_FEATURES]})
+        resp = client.post(
+            "/v1/predictions/readmission/batch",
+            json={"records": [SAMPLE_FEATURES, SAMPLE_FEATURES]},
+        )
     assert resp.status_code == 200
-    assert resp.json() == {"predictions": [
-        {"predicted_label": 0, "probability": 0.30, "risk_tier": "medium", "model_version": "champion"},
-        {"predicted_label": 1, "probability": 0.82, "risk_tier": "high", "model_version": "champion"},
-    ]}
+    assert resp.json() == {
+        "predictions": [
+            {
+                "predicted_label": 0,
+                "probability": 0.30,
+                "risk_tier": "medium",
+                "model_version": "champion",
+            },
+            {
+                "predicted_label": 1,
+                "probability": 0.82,
+                "risk_tier": "high",
+                "model_version": "champion",
+            },
+        ]
+    }

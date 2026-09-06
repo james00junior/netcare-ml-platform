@@ -87,7 +87,9 @@ def _predict_records(records: list[Any]) -> list[dict[str, Any]]:
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model serving backend not available")
 
-    raw_records = [record.model_dump() if hasattr(record, "model_dump") else record for record in records]
+    raw_records = [
+        record.model_dump() if hasattr(record, "model_dump") else record for record in records
+    ]
 
     try:
         return predictor.predict(raw_records)
