@@ -21,7 +21,7 @@ jobs:
       - name: Lint
         run: ruff check src tests api
       - name: Format check
-        run: black --diff --check src tests api
+        run: black --check src tests api
       - name: Run tests
         run: pytest tests/ -v --cov=src --cov-report=xml
       - uses: codecov/codecov-action@v4
