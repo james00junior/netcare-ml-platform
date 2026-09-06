@@ -15,6 +15,68 @@ Phase 11 provides operational visibility across:
 
 The monitoring architecture remains Databricks-centric and does not introduce Cloud Run or API Gateway.
 
+## Verified live evidence — 2026-09-06
+
+The first Phase 11 telemetry inspection was performed against the isolated candidate endpoint:
+
+```text
+Endpoint:       cidev-netcare-readmission-candidate
+Served model:   readmission_model-8
+Registry model: netcareaidatabricks.default.readmission_model
+Model version:  8
+```
+
+### Observed endpoint metrics
+
+The live Prometheus/OpenMetrics export exposed the following metrics:
+
+```text
+cpu_usage_percentage
+mem_usage_percentage
+request_count_total
+request_4xx_count_total
+request_5xx_count_total
+request_latency_ms
+model_queue_time_ms
+provisioned_concurrent_requests_total
+```
+
+Observed values in the supplied telemetry snapshot:
+
+| Metric | Observed value |
+|---|---:|
+| `cpu_usage_percentage` | `2.344062231666667` |
+| `mem_usage_percentage` | `6.823611259460449` |
+| `request_count_total` | `0.0` |
+| `request_4xx_count_total` | `0.0` |
+| `request_5xx_count_total` | `0.0` |
+| `provisioned_concurrent_requests_total` | `4.0` |
+
+The request-latency and model-queue-time histograms were also exposed. Their reported snapshot contained zero observations (`count=0`, `sum=0`). The snapshot therefore represents a minute with no recorded requests; it is not evidence that the endpoint cannot serve requests. A separate live v8 inference request has already been verified successfully.
+
+### Observed endpoint configuration
+
+The live endpoint GET response verified:
+
+```text
+config_version:       1
+endpoint state:       READY
+config update:        NOT_UPDATING
+deployment:            DEPLOYMENT_READY
+served model:         readmission_model-8
+registered model:     netcareaidatabricks.default.readmission_model
+registered version:   8
+traffic:              100%
+workload:             Small / CPU
+scale to zero:        enabled
+route optimized:      false
+permission:           CAN_MANAGE
+```
+
+The returned endpoint configuration did not expose an inference-table configuration in the observed `config` object. This observation does **not** establish that no other monitoring or inference-record capability exists in the workspace. Inference-record sources, governed monitoring data, system tables, and permissions remain to be inspected.
+
+No telemetry configuration change has been made as a result of this inspection.
+
 ## Monitoring layers
 
 ### 1. Serving / platform health
@@ -165,6 +227,8 @@ Monitoring must follow the same security principles as the serving system:
 ### Step 11.1 — Inspect live serving telemetry
 
 Identify the actual telemetry, endpoint metrics, inference records, system tables, and permissions available in the deployed Databricks environment.
+
+**Current status:** **IN PROGRESS.** Live endpoint metrics and candidate endpoint configuration have been observed and recorded. Inference-record sources, governed monitoring data, system tables, and permissions are not yet fully verified.
 
 **Exit criterion:** observed source/schema documented with evidence.
 
