@@ -14,9 +14,9 @@ from .serving import (
 )
 
 __all__ = [
-    "DataQualityResult",
     "ENDPOINT_USAGE_COLUMNS",
     "SERVED_ENTITY_COLUMNS",
+    "DataQualityResult",
     "build_serving_observation",
     "check_performance_degradation",
     "compute_performance_metrics",
