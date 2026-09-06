@@ -41,16 +41,16 @@ The baseline architecture deliberately avoids an additional API compute layer. C
 | Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE / FROZEN** |
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
-| Phase 10 | Security + Secrets + IAM | **IN PROGRESS** |
-| Phase 11 | Monitoring + Observability | **PENDING** |
+| Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
+| Phase 11 | Monitoring + Observability | **IN PROGRESS** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-**Freeze rule:** Phases 1–9 are closed. Their validated implementation is not modified while Phase 10–13 work proceeds.
+**Freeze rule:** Phases 1–9 are closed. Their validated implementation is not modified while Phase 10–13 work proceeds. The protected v1 serving baseline is never changed as part of candidate development.
 
 ## Validated serving baseline
 
-The validated serving implementation uses **Databricks Model Serving** directly.
+The validated candidate serving implementation uses **Databricks Model Serving** directly.
 
 Registered model:
 
@@ -123,7 +123,7 @@ The existing `DatabricksServingClient` validates and normalises the serving resp
 
 ## Phase 10 — Security + Secrets + IAM
 
-Phase 10 is the active security-hardening phase.
+Phase 10 deployment authentication and production bundle deployment have now been validated.
 
 GitHub Actions deployment authentication uses **Databricks GitHub OIDC / workload identity federation**, not a long-lived Databricks personal access token.
 
@@ -138,8 +138,45 @@ Databricks Authentication
 Databricks Bundles
       │
       ▼
-Model Serving
+Production Databricks Resources
 ```
+
+The production federation policy was corrected to the immutable GitHub Actions environment subject and Databricks OIDC token audience. The existing dev federation policy was left unchanged.
+
+Verified production deployment checkpoint:
+
+```text
+Commit:
+2104e7e849f00b56cdd2593171ac3146c91b7d4a
+
+Environment:
+prod
+
+Databricks CLI:
+1.15.0
+
+Tests:
+41 passed
+
+Bundle validation:
+SUCCESS
+
+Bundle deployment:
+SUCCESS
+
+Resources created:
+- train_readmission_model
+- readmission_model_candidate_endpoint
+- readmission_model_endpoint
+
+Resources changed:
+0
+
+Resources deleted:
+0
+```
+
+This confirms successful production bundle deployment. It does **not** by itself claim that production serving inference has been runtime-validated; that remains a separate verification checkpoint.
 
 Deployment workflows use:
 
@@ -192,19 +229,51 @@ The repository includes a committed `uv.lock` containing the validated 240-packa
 
 ## Phase 11 — Monitoring + Observability
 
-Monitoring will cover:
+Phase 11 is now active. Monitoring is being implemented around the Databricks-native production boundary rather than introducing another application-serving layer.
 
-- serving latency, errors, availability, throughput, and resource utilisation;
-- data quality, schema changes, feature distributions, and drift;
-- prediction distributions, confidence, actual outcomes, ROC-AUC, Recall, Precision, and F1.
+Monitoring is split into three levels:
+
+### Platform
+
+- endpoint health and availability;
+- request rate and throughput;
+- P50/P99 latency;
+- model inference latency;
+- request queue time;
+- error rates;
+- serving resource utilisation;
+- deployment and model-version state.
+
+### Data
+
+- missing values;
+- schema changes;
+- feature distribution changes;
+- freshness and completeness;
+- feature drift against an appropriate baseline.
+
+### Model
+
+- prediction distribution;
+- confidence/probability distribution;
+- model-version usage;
+- labelled-outcome performance when ground truth becomes available;
+- ROC-AUC, Recall, Precision, and F1;
+- regression against the frozen validation baseline.
+
+The Phase 11 implementation plan is documented in [`docs/monitoring.md`](docs/monitoring.md). The implementation will prefer Databricks endpoint health metrics, Unity Catalog governed monitoring data, system tables, and inference logging where appropriate. No telemetry feature is enabled merely by documentation; live configuration is validated before being marked complete.
 
 ## Phase 12 — Drift + Retraining
 
 The production lifecycle will support drift-triggered or scheduled retraining, followed by model evaluation, registration, and controlled deployment.
 
+Phase 12 will consume the monitoring and drift signals established in Phase 11 rather than introducing an independent monitoring path.
+
 ## Phase 13 — Canary + Production Releases
 
 Production releases will use candidate validation, controlled traffic shifts, and rollback to a previously trusted model version.
+
+The protected v1 baseline remains the rollback reference until a later release is explicitly validated and promoted.
 
 ## Technology stack
 
@@ -218,7 +287,7 @@ Production releases will use candidate validation, controlled traffic shifts, an
 - **Serving:** Databricks Model Serving
 - **Integration:** HTTPS / JSON directly to Databricks Model Serving
 - **CI/CD:** GitHub Actions + Databricks Bundles
-- **Monitoring:** Databricks-native telemetry and GCP monitoring where appropriate
+- **Monitoring:** Databricks-native endpoint telemetry, Unity Catalog monitoring, and GCP monitoring where appropriate
 
 ## Repository structure
 
