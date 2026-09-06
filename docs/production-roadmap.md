@@ -162,8 +162,9 @@ Current Phase 10 controls include:
 - standardised `DATABRICKS_HOST` bundle configuration across dev, staging, and prod
 - pinned CI formatter/linter versions based on observed CI
 - a committed record of verified build/runtime versions
+- a committed `uv.lock` containing the validated 240-package transitive dependency resolution
 
-A full dependency lock has not yet been committed; transitive dependency reproducibility therefore remains an explicit follow-up item.
+The dependency-locking follow-up is now complete. `pyproject.toml` remains the source of truth for direct dependencies, while `uv.lock` records the resolved transitive dependency graph.
 
 ## Phase 11 — Monitoring and Observability
 
