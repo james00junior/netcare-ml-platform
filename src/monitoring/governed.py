@@ -59,7 +59,7 @@ def monitoring_usage_query(
     if limit <= 0:
         raise ValueError("limit must be positive")
     target = _quote_identifier(target_table)
-    source = _quote_identifier(ENDPOINT_USAGE_TABLE)
+    source = ENDPOINT_USAGE_TABLE
     entity = _quote_string(served_entity_id)
     columns = ",\n    ".join(f"`{column}`" for column in MONITORING_USAGE_COLUMNS)
     return (
@@ -75,7 +75,7 @@ def monitoring_usage_query(
 def monitoring_entity_query(*, served_entity_id: str, target_table: str) -> str:
     """Build the governed served-entity metadata extraction query."""
     target = _quote_identifier(target_table)
-    source = _quote_identifier(SERVED_ENTITIES_TABLE)
+    source = SERVED_ENTITIES_TABLE
     entity = _quote_string(served_entity_id)
     columns = ",\n    ".join(f"`{column}`" for column in MONITORING_ENTITY_COLUMNS)
     return (
