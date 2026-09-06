@@ -42,7 +42,7 @@ The baseline architecture deliberately avoids an additional API compute layer. C
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
-| Phase 11 | Monitoring + Observability | **IN PROGRESS** |
+| Phase 11 | Monitoring + Observability | **IN PROGRESS — LIVE TELEMETRY VERIFIED** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
@@ -70,26 +70,48 @@ MLflow run:
 bf12e7f602084e78acdab4797c40c2b2
 ```
 
-Isolated candidate endpoint:
+Verified candidate endpoint:
 
 ```text
-dev_james_mashiyane_za_dev-netcare-readmission-candidate
+cidev-netcare-readmission-candidate
 ```
 
-Verified serving state at validation:
+Verified serving state:
 
 ```text
 endpoint state:       READY
 configuration:        NOT_UPDATING
 served model:         readmission_model-8
 model version:        8
-traffic:              100%
+traffic:              100% within candidate endpoint
 deployment:           DEPLOYMENT_READY
 workload:             Small / CPU
 scale to zero:        enabled
+config version:       1
 ```
 
-The exact 28-field model contract was successfully validated against the isolated v8 candidate endpoint. The serving response included `predicted_label`, `probability`, `risk_tier`, and `model_version`.
+The exact 28-field model contract was successfully validated against the isolated v8 candidate endpoint. A live inference request returned:
+
+```text
+predicted_label: 0
+probability: 0.32462546453278807
+risk_tier: medium
+model_version: champion
+```
+
+The `model_version` response field is recorded exactly as observed. The endpoint configuration independently identifies the served registered model version as `8`.
+
+The protected baseline remains separate:
+
+```text
+cidev-netcare-readmission
+registered model version: 1
+served model:             readmission_model-1
+traffic:                  100%
+state:                    READY
+```
+
+The protected v1 endpoint has not been changed or promoted as part of candidate validation.
 
 ## Phase 9 — Existing-System Integration
 
@@ -229,9 +251,48 @@ The repository includes a committed `uv.lock` containing the validated 240-packa
 
 ## Phase 11 — Monitoring + Observability
 
-Phase 11 is now active. Monitoring is being implemented around the Databricks-native production boundary rather than introducing another application-serving layer.
+Phase 11 is now active, with the first live Databricks monitoring surface verified against the isolated v8 candidate endpoint.
 
-Monitoring is split into three levels:
+### Verified live serving telemetry
+
+Observed from `cidev-netcare-readmission-candidate` / `readmission_model-8`:
+
+```text
+cpu_usage_percentage                 2.344062231666667
+mem_usage_percentage                 6.823611259460449
+request_count_total                  0
+request_4xx_count_total              0
+request_5xx_count_total              0
+provisioned_concurrent_requests_total 4
+```
+
+The live Prometheus/OpenMetrics surface also exposes request-latency and model-queue-time histograms:
+
+```text
+request_latency_ms
+model_queue_time_ms
+```
+
+The observed snapshot contained zero request observations for those histograms and zero requests/errors for the reported minute. This is a telemetry observation, not evidence that the endpoint cannot serve requests; v8 runtime inference has separately been verified successfully.
+
+### Verified candidate endpoint configuration
+
+```text
+endpoint:            cidev-netcare-readmission-candidate
+served model:        readmission_model-8
+registered version:  8
+traffic:             100%
+endpoint state:      READY
+config update:       NOT_UPDATING
+deployment:           DEPLOYMENT_READY
+workload:             Small / CPU
+scale to zero:        enabled
+config version:       1
+```
+
+No telemetry configuration change has been made. The endpoint GET response did not expose an inference-table configuration in the returned `config` object. This does **not** establish that no other monitoring capability exists; the workspace's inference-record and governed monitoring surfaces still require inspection.
+
+Monitoring remains split into three levels:
 
 ### Platform
 
