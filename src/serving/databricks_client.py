@@ -79,7 +79,9 @@ class DatabricksServingClient:
                 "Databricks serving response did not contain predictions",
                 extra={"event": "upstream_response_invalid", **log_context},
             )
-            raise DatabricksServingError("Databricks serving response did not contain predictions.")
+            raise DatabricksServingError(
+                "Databricks serving response did not contain predictions."
+            )
 
         if len(predictions) != len(records):
             logger.error(
@@ -102,7 +104,9 @@ class DatabricksServingClient:
                 "Databricks serving returned an invalid prediction",
                 extra={"event": "upstream_response_invalid", **log_context},
             )
-            raise DatabricksServingError("Databricks returned an invalid prediction.") from exc
+            raise DatabricksServingError(
+                "Databricks returned an invalid prediction."
+            ) from exc
 
         logger.info(
             "Databricks serving request completed",
@@ -144,7 +148,11 @@ class DatabricksServingClient:
                     raise DatabricksServingError(
                         f"Databricks serving request failed with HTTP {status_code}."
                     ) from exc
-            except (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError) as exc:
+            except (
+                httpx.TimeoutException,
+                httpx.ConnectError,
+                httpx.RemoteProtocolError,
+            ) as exc:
                 if attempt == self.max_retries:
                     logger.error(
                         "Databricks serving request failed after retries",
@@ -155,7 +163,9 @@ class DatabricksServingClient:
                             **log_context,
                         },
                     )
-                    raise DatabricksServingError("Databricks serving request failed.") from exc
+                    raise DatabricksServingError(
+                        "Databricks serving request failed."
+                    ) from exc
 
             if self.retry_backoff:
                 time.sleep(self.retry_backoff * (2**attempt))
@@ -166,7 +176,9 @@ class DatabricksServingClient:
     def _normalise_prediction(item: Any) -> dict[str, Any]:
         """Validate the serving response shape before returning it to the API."""
         if not isinstance(item, dict):
-            raise DatabricksServingError("Databricks returned an invalid prediction item.")
+            raise DatabricksServingError(
+                "Databricks returned an invalid prediction item."
+            )
 
         required = {"predicted_label", "probability", "risk_tier"}
         if not required.issubset(item):
