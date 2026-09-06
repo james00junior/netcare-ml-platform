@@ -1,5 +1,6 @@
 """Unit tests for production serving components."""
 
+import httpx
 import pandas as pd
 import pytest
 from pydantic import ValidationError
@@ -145,8 +146,137 @@ def test_databricks_client_sends_request_id_without_payload_logging(monkeypatch)
 
     assert result[0]["risk_tier"] == "low"
     assert captured["url"] == "https://test.invalid/invocations"
-    assert captured["headers"] == {"Authorization": "Bearer token"}
+    assert captured["headers"] == {
+        "Authorization": "Bearer token",
+        "X-Request-ID": "request-123",
+    }
     assert captured["json"] == {"dataframe_records": [{"age": 65}]}
+
+
+def test_databricks_client_retries_transient_500(monkeypatch):
+    client = DatabricksServingClient(
+        "https://test.invalid/invocations",
+        "token",
+        max_retries=2,
+        retry_backoff=0,
+    )
+    calls = 0
+
+    def fake_post(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            return httpx.Response(503, request=httpx.Request("POST", args[0]))
+        return httpx.Response(
+            200,
+            json={
+                "predictions": [
+                    {"predicted_label": 0, "probability": 0.2, "risk_tier": "low"}
+                ]
+            },
+            request=httpx.Request("POST", args[0]),
+        )
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    result = client.predict([{"age": 65}])
+
+    assert calls == 3
+    assert result[0]["predicted_label"] == 0
+
+
+def test_databricks_client_does_not_retry_client_error(monkeypatch):
+    client = DatabricksServingClient(
+        "https://test.invalid/invocations", "token", max_retries=2, retry_backoff=0
+    )
+    calls = 0
+
+    def fake_post(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return httpx.Response(401, request=httpx.Request("POST", args[0]))
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    with pytest.raises(DatabricksServingError, match="HTTP 401"):
+        client.predict([{"age": 65}])
+
+    assert calls == 1
+
+
+def test_databricks_client_retries_timeout(monkeypatch):
+    client = DatabricksServingClient(
+        "https://test.invalid/invocations", "token", max_retries=2, retry_backoff=0
+    )
+    calls = 0
+
+    def fake_post(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        raise httpx.TimeoutException("timed out")
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    with pytest.raises(DatabricksServingError, match="request failed"):
+        client.predict([{"age": 65}])
+
+    assert calls == 3
+
+
+def test_databricks_client_rejects_malformed_json(monkeypatch):
+    client = DatabricksServingClient("https://test.invalid/invocations", "token")
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            raise ValueError("invalid json")
+
+    monkeypatch.setattr("httpx.post", lambda *args, **kwargs: Response())
+
+    with pytest.raises(DatabricksServingError, match="valid JSON"):
+        client.predict([{"age": 65}])
+
+
+def test_databricks_client_rejects_prediction_count_mismatch(monkeypatch):
+    client = DatabricksServingClient("https://test.invalid/invocations", "token")
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "predictions": [
+                    {"predicted_label": 0, "probability": 0.2, "risk_tier": "low"}
+                ]
+            }
+
+    monkeypatch.setattr("httpx.post", lambda *args, **kwargs: Response())
+
+    with pytest.raises(DatabricksServingError, match="prediction count"):
+        client.predict([{"age": 65}, {"age": 70}])
+
+
+def test_databricks_client_rejects_invalid_prediction_values(monkeypatch):
+    client = DatabricksServingClient("https://test.invalid/invocations", "token")
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "predictions": [
+                    {"predicted_label": "invalid", "probability": 0.2, "risk_tier": "low"}
+                ]
+            }
+
+    monkeypatch.setattr("httpx.post", lambda *args, **kwargs: Response())
+
+    with pytest.raises(DatabricksServingError, match="invalid prediction"):
+        client.predict([{"age": 65}])
 
 
 def test_prediction_request_accepts_canonical_contract():
