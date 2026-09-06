@@ -8,7 +8,6 @@ from .governed import (
     monitoring_table_schema,
     monitoring_usage_query,
 )
-from .drift import detect_data_drift
 from .performance import check_performance_degradation, compute_performance_metrics
 from .serving import (
     ENDPOINT_USAGE_COLUMNS,
