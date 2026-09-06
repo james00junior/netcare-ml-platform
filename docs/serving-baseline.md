@@ -6,6 +6,7 @@ This document records the live Databricks serving state verified on 2026-09-06. 
 
 Endpoint: `cidev-netcare-readmission`
 
+- Endpoint ID: `044cf254e6f3475d948e511d7945905f`
 - Registered model: `netcareaidatabricks.default.readmission_model`
 - Model version: `1`
 - Served model: `readmission_model-1`
@@ -13,9 +14,14 @@ Endpoint: `cidev-netcare-readmission`
 - Endpoint state: `READY`
 - Config update: `NOT_UPDATING`
 - Deployment state: `DEPLOYMENT_READY`
+- Deployment state message: `Scaled to zero`
 - Workload: `Small`, `CPU`
 - Scale-to-zero: enabled
 - Config version: `1`
+- Route optimized: `false`
+- Permission level: `CAN_MANAGE`
+- Creation timestamp: `1788710444000`
+- Last updated timestamp: `1788710444000`
 
 This remains the protected v1 serving baseline and rollback reference.
 
@@ -23,6 +29,7 @@ This remains the protected v1 serving baseline and rollback reference.
 
 Endpoint: `cidev-netcare-readmission-candidate`
 
+- Endpoint ID: `d8e17cedddda498c9bad212619250597`
 - Registered model: `netcareaidatabricks.default.readmission_model`
 - Model version: `8`
 - Served model: `readmission_model-8`
@@ -33,8 +40,31 @@ Endpoint: `cidev-netcare-readmission-candidate`
 - Workload: `Small`, `CPU`
 - Scale-to-zero: enabled
 - Config version: `1`
+- Route optimized: `false`
+- Permission level: `CAN_MANAGE`
+- Creation timestamp: `1788710444000`
+- Last updated timestamp: `1788710444000`
 
 This confirms that model version 8 is deployed as the isolated candidate inference endpoint. It has not been promoted to the protected v1 endpoint.
+
+## Direct v8 inference evidence
+
+A live invocation of `cidev-netcare-readmission-candidate` was verified using the endpoint's observed OpenAPI request contract. The observed response was:
+
+```json
+{
+  "predictions": [
+    {
+      "model_version": "champion",
+      "predicted_label": 0,
+      "probability": 0.32462546453278807,
+      "risk_tier": "medium"
+    }
+  ]
+}
+```
+
+The endpoint configuration identifies registered model version `8` / served model `readmission_model-8`. The response field `model_version` was observed as `champion` and is recorded exactly as returned; no interpretation is added here.
 
 ## Development endpoints
 
@@ -52,6 +82,12 @@ Model version numbers must not be interpreted as training versus inference versi
 
 No telemetry configuration, traffic promotion, model replacement, or endpoint configuration change is implied by this document.
 
+## Monitoring evidence checkpoint
+
+Candidate v8 serving telemetry was inspected separately through the Databricks metrics surface. The observed metrics included CPU usage, memory usage, request count, 4xx/5xx counts, provisioned concurrent requests, request latency, and model queue time. That evidence is recorded in `docs/monitoring.md`.
+
+The protected v1 endpoint configuration above does not include telemetry or inference-table configuration in the returned `config` object. This does not establish that no other monitoring or inference-record capability exists in the workspace.
+
 ## Next verification
 
-Before Phase 11 monitoring configuration is changed, the live Databricks telemetry/metrics surface and available inference records must be inspected. Monitoring implementation must use observed workspace capabilities and schemas rather than invented table names or fields.
+The next Databricks inspection is to obtain the same live metrics surface for the protected v1 endpoint and compare it with the already observed v8 candidate metrics. After that, the available inference-record/monitoring data source and its actual schema and permissions must be identified before any monitoring configuration is changed.
