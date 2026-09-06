@@ -29,9 +29,60 @@ SERVED_ENTITY_COLUMNS = (
 )
 
 
-def normalize_endpoint_metrics(
-    metrics: Mapping[str, Any],
+def endpoint_usage_query(served_entity_id: str, limit: int = 100) -> str:
+    """Build the verified endpoint_usage query without adding unverified fields."""
+    if not served_entity_id:
+        raise ValueError("served_entity_id must not be empty")
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+    escaped_id = served_entity_id.replace("'", "''")
+    columns = ", ".join(ENDPOINT_USAGE_COLUMNS)
+    return (
+        f"SELECT {columns} FROM system.serving.endpoint_usage "
+        f"WHERE served_entity_id = '{escaped_id}' "
+        f"ORDER BY request_time DESC LIMIT {int(limit)}"
+    )
+
+
+def served_entities_query(served_entity_id: str) -> str:
+    """Build the verified served_entities lookup query."""
+    if not served_entity_id:
+        raise ValueError("served_entity_id must not be empty")
+    escaped_id = served_entity_id.replace("'", "''")
+    columns = ", ".join(SERVED_ENTITY_COLUMNS)
+    return (
+        f"SELECT {columns} FROM system.serving.served_entities "
+        f"WHERE served_entity_id = '{escaped_id}'"
+    )
+
+
+def normalize_endpoint_health(
+    *,
+    endpoint_state: str | None,
+    config_update_state: str | None,
+    deployment_state: str | None,
 ) -> dict[str, Any]:
+    """Represent only explicitly observed endpoint state values."""
+    ready = endpoint_state == "READY" if endpoint_state is not None else None
+    updating = config_update_state == "UPDATING" if config_update_state is not None else None
+    deployment_ready = (
+        deployment_state == "DEPLOYMENT_READY" if deployment_state is not None else None
+    )
+    healthy = (
+        ready and not updating and deployment_ready
+        if None not in (ready, updating, deployment_ready)
+        else None
+    )
+    return {
+        "endpoint_state": endpoint_state,
+        "config_update_state": config_update_state,
+        "deployment_state": deployment_state,
+        "ready": ready,
+        "healthy": healthy,
+    }
+
+
+def normalize_endpoint_metrics(metrics: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize only metrics actually supplied by the serving telemetry source.
 
     Missing metrics remain absent; they are never converted to zero.
@@ -55,9 +106,7 @@ def normalize_usage_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, An
     """Return request telemetry using the verified endpoint_usage contract."""
     normalized = []
     for row in rows:
-        normalized.append(
-            {column: row.get(column) for column in ENDPOINT_USAGE_COLUMNS}
-        )
+        normalized.append({column: row.get(column) for column in ENDPOINT_USAGE_COLUMNS})
     return normalized
 
 
@@ -79,6 +128,9 @@ def build_serving_observation(
     metrics: Mapping[str, Any],
     served_entity_rows: Iterable[Mapping[str, Any]],
     usage_rows: Iterable[Mapping[str, Any]],
+    endpoint_state: str | None = None,
+    config_update_state: str | None = None,
+    deployment_state: str | None = None,
 ) -> dict[str, Any]:
     """Build a monitoring observation from already-observed source data.
 
@@ -94,6 +146,11 @@ def build_serving_observation(
         "served_entity_id": served_entity_id,
         "served_entity_found": entity is not None,
         "served_entity": entity,
+        "health": normalize_endpoint_health(
+            endpoint_state=endpoint_state,
+            config_update_state=config_update_state,
+            deployment_state=deployment_state,
+        ),
         "metrics": normalize_endpoint_metrics(metrics),
         "usage_record_count": len(usage),
         "usage_records_available": bool(usage),
