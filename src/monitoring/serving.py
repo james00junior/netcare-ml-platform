@@ -5,7 +5,8 @@ execution remain outside the monitoring domain logic so the code cannot invent
 workspace configuration or silently turn missing telemetry into observations.
 """
 
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 ENDPOINT_USAGE_COLUMNS = (
     "request_time",
