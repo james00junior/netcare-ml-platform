@@ -1,6 +1,7 @@
 """Deterministic API tests for the FastAPI inference boundary."""
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from api import main as api_main
 
@@ -89,7 +90,7 @@ def test_versioned_prediction_uses_databricks_backend(monkeypatch):
     monkeypatch.setattr(
         api_main.settings, "databricks_serving_endpoint", "https://example.test/invocations"
     )
-    monkeypatch.setattr(api_main.settings, "databricks_serving_token", "stub")
+    monkeypatch.setattr(api_main.settings, "databricks_serving_token", SecretStr("stub"))
     monkeypatch.setattr(api_main, "DatabricksServingClient", FakeDatabricksServingClient)
     with TestClient(api_main.app) as client:
         resp = client.post("/v1/predictions/readmission", json={"features": SAMPLE_FEATURES})
@@ -127,7 +128,7 @@ def test_versioned_batch_prediction_uses_databricks_backend(monkeypatch):
     monkeypatch.setattr(
         api_main.settings, "databricks_serving_endpoint", "https://example.test/invocations"
     )
-    monkeypatch.setattr(api_main.settings, "databricks_serving_token", "stub")
+    monkeypatch.setattr(api_main.settings, "databricks_serving_token", SecretStr("stub"))
     monkeypatch.setattr(api_main, "DatabricksServingClient", FakeDatabricksServingClient)
     with TestClient(api_main.app) as client:
         resp = client.post(

@@ -5,39 +5,54 @@ on:
     branches: [develop]
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: dev
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.16"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,api]"
 
+      - name: Record Python and package versions
+        run: |
+          python --version
+          pip --version
+          pytest --version
+          black --version
+          ruff --version
+
       - name: Run tests
         run: pytest tests/ -v
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
+        with:
+          version: "1.15.0"
+
+      - name: Record Databricks CLI version
+        run: databricks version --output json
 
       - name: Validate Databricks bundle
         working-directory: databricks
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: databricks bundle validate -t dev
 
       - name: Deploy Databricks bundle
         working-directory: databricks
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: databricks bundle deploy -t dev
