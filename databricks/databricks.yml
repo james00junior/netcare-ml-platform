@@ -39,20 +39,20 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://8259552034754034.4.gcp.databricks.com
+      host: ${DATABRICKS_HOST}
     variables:
       catalog_name: netcareaidatabricks
 
   staging:
     mode: production
     workspace:
-      host: ${DATABRICKS_HOST_STAGING}
+      host: ${DATABRICKS_HOST}
     variables:
       catalog_name: netcareaidatabricks
 
   prod:
     mode: production
     workspace:
-      host: ${DATABRICKS_HOST_PROD}
+      host: ${DATABRICKS_HOST}
     variables:
       catalog_name: netcareaidatabricks
