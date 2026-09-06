@@ -92,6 +92,34 @@ The two live exports confirm that both endpoints expose request/error and latenc
 
 This comparison is limited to the exact metrics returned by the two supplied exports. It does not establish that metrics absent from one snapshot are unavailable from the workspace generally.
 
+### Verified governed serving system tables
+
+The target workspace exposes these Databricks serving system tables:
+
+```text
+system.serving.endpoint_usage
+system.serving.served_entities
+```
+
+`system.serving.endpoint_usage` was verified with 114,721,404 rows and a request-time range from `2026-05-17 00:00:00.374000` through `2026-09-06 18:11:59.375000`. Its observed schema contains per-request fields including `request_time`, `status_code`, `requester`, `databricks_request_id`, `client_request_id`, and `served_entity_id`.
+
+`system.serving.served_entities` was verified with 9,645 rows. Its observed schema contains endpoint/model identity fields including `served_entity_id`, `endpoint_name`, `served_entity_name`, `entity_name`, `entity_version`, `endpoint_config_version`, `custom_model_config`, `change_time`, and `endpoint_delete_time`.
+
+The v8 candidate served entity was queried directly from `system.serving.served_entities` and verified as:
+
+```text
+served_entity_id:        362c5dbb1cf448789afbb4ee6a687712
+endpoint_name:           cidev-netcare-readmission-candidate
+served_entity_name:      readmission_model-8
+entity_name:             netcareaidatabricks.default.readmission_model
+entity_version:          8
+endpoint_config_version: 1
+change_time:             2026-09-06T16:00:44.803Z
+endpoint_delete_time:    null
+```
+
+A direct query of `system.serving.endpoint_usage` for that exact v8 `served_entity_id` succeeded but returned **zero rows**. Therefore the governed usage-table path is confirmed as queryable, but v8 request records have **not yet been observed in that table**. No inference-record population is being assumed from endpoint success alone.
+
 ### Observed endpoint configuration
 
 The live endpoint GET responses previously verified:
@@ -126,9 +154,7 @@ v8 candidate endpoint: cidev-netcare-readmission-candidate
   permission:           CAN_MANAGE
 ```
 
-The returned endpoint configurations did not expose an inference-table configuration in the observed `config` objects. This observation does **not** establish that no other monitoring or inference-record capability exists in the workspace. Inference-record sources, governed monitoring data, system tables, and permissions remain to be inspected.
-
-No telemetry configuration change has been made as a result of these inspections.
+No serving configuration was changed during this monitoring inspection.
 
 ## Monitoring layers
 
@@ -190,16 +216,18 @@ The existing quality gates remain the reference thresholds unless a later, expli
 
 ## Data and telemetry design
 
-The preferred design is to use Databricks-native serving telemetry and governed monitoring data. Where inference logging is required, records should contain only the fields necessary for monitoring and model-performance analysis.
+The verified serving telemetry path currently consists of Databricks endpoint metrics plus the governed serving system tables. The system-table usage path is queryable, but the exact v8 candidate entity currently has zero matching `endpoint_usage` rows. Therefore prediction-level and labelled-outcome monitoring must not be represented as implemented from that table until records are actually observed or another approved source is verified.
 
 Conceptually:
 
 ```text
 Databricks Model Serving
         │
-        ├── Endpoint / request telemetry
+        ├── Endpoint / request telemetry  ← verified
         │
-        ├── Inference records
+        └── Serving system tables
+              ├── served_entities          ← verified
+              └── endpoint_usage           ← queryable; v8 rows not yet observed
         │
         ▼
 Governed monitoring data
@@ -213,7 +241,7 @@ Governed monitoring data
               Alerts
 ```
 
-The exact Databricks telemetry source and schema must be inspected in the target workspace before implementation. Do not hard-code a table name or schema that has not been observed in the deployed environment.
+No inference-record population or telemetry configuration is assumed beyond the observed evidence.
 
 ## Baselines
 
@@ -281,9 +309,9 @@ Monitoring must follow the same security principles as the serving system:
 
 Identify the actual telemetry, endpoint metrics, inference records, system tables, and permissions available in the deployed Databricks environment.
 
-**Current status:** **IN PROGRESS.** Live endpoint metrics for both the protected v1 baseline and isolated v8 candidate have been observed and recorded. Inference-record sources, governed monitoring data, system tables, and permissions are not yet fully verified.
+**Current status:** **VERIFIED FOR ENDPOINT TELEMETRY + SERVING SYSTEM-TABLE ACCESS.** Live endpoint metrics for both the protected v1 baseline and isolated v8 candidate have been observed. `system.serving.endpoint_usage` and `system.serving.served_entities` are queryable, and the exact v8 served entity has been verified. The v8-specific `endpoint_usage` query returned zero rows, so request-record population remains unverified.
 
-**Exit criterion:** observed source/schema documented with evidence.
+**Exit criterion:** observed source/schema documented with evidence. **Met for the inspected endpoint telemetry and system-table surfaces; request-record population remains open.**
 
 ### Step 11.2 — Establish governed monitoring data
 
