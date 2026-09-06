@@ -36,7 +36,7 @@ sync:
 
 targets:
   dev:
-    mode: development
+    mode: production
     default: true
     presets:
       name_prefix: "ci-"
