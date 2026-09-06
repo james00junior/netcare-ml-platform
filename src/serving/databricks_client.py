@@ -37,7 +37,10 @@ class DatabricksServingClient:
         payload = {"dataframe_records": records}
         headers = {"Authorization": f"Bearer {self.token}"}
         log_context = {"request_id": request_id, "batch_size": len(records)}
-        logger.info("Databricks serving request started", extra={"event": "upstream_request_started", **log_context})
+        logger.info(
+            "Databricks serving request started",
+            extra={"event": "upstream_request_started", **log_context},
+        )
 
         try:
             response = httpx.post(
@@ -50,7 +53,11 @@ class DatabricksServingClient:
         except httpx.HTTPStatusError as exc:
             logger.error(
                 "Databricks serving returned an HTTP error",
-                extra={"event": "upstream_request_failed", "upstream_status": exc.response.status_code, **log_context},
+                extra={
+                    "event": "upstream_request_failed",
+                    "upstream_status": exc.response.status_code,
+                    **log_context,
+                },
             )
             raise DatabricksServingError(
                 f"Databricks serving request failed with HTTP {exc.response.status_code}."
@@ -69,7 +76,9 @@ class DatabricksServingClient:
                 "Databricks serving response did not contain predictions",
                 extra={"event": "upstream_response_invalid", **log_context},
             )
-            raise DatabricksServingError("Databricks serving response did not contain predictions.")
+            raise DatabricksServingError(
+                "Databricks serving response did not contain predictions."
+            )
 
         result = [self._normalise_prediction(item) for item in predictions]
         logger.info(
