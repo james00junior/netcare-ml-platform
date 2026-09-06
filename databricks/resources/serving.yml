@@ -1,7 +1,7 @@
 resources:
   model_serving_endpoints:
     readmission_model_endpoint:
-      name: ${bundle.target}-netcare-readmission
+      name: dev-netcare-readmission
       config:
         served_entities:
           - entity_name: ${var.registered_model_name}
@@ -14,7 +14,7 @@ resources:
               traffic_percentage: 100
 
     readmission_model_candidate_endpoint:
-      name: ${bundle.target}-netcare-readmission-candidate
+      name: dev-netcare-readmission-candidate
       config:
         served_entities:
           - entity_name: ${var.registered_model_name}
