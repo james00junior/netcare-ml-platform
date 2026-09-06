@@ -18,10 +18,10 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
 | Phase 11 | Monitoring + Observability | **COMPLETE / FROZEN — VERIFIED MONITORING SCOPE** |
-| Phase 12 | Drift + Retraining | **PENDING** |
+| Phase 12 | Drift + Retraining | **COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-**Freeze rule:** Phases 1–11 are closed for their validated scope. The protected v1 serving baseline remains frozen while later lifecycle work proceeds.
+**Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while later lifecycle work proceeds.
 
 ## Evidence rule
 
@@ -249,9 +249,27 @@ This is a deliberate completion boundary: the monitoring framework is complete a
 
 ## Phase 12 — Drift Detection and Retraining
 
-Phase 12 is the next active lifecycle phase. It will consume validated drift/performance signals from Phase 11 and connect them to the existing training, MLflow, quality-gate, registration, and promotion components.
+**Status: COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE.**
 
-The phase must first verify the actual retraining trigger/source and training-job configuration before adding or changing Databricks orchestration.
+Phase 12 provides a deterministic CI-tested drift-to-retraining decision path. It uses the existing drift detector and an explicit auditable retraining policy.
+
+The synthetic fixture uses 500 reference observations (seed `42`) and 500 shifted observations (seed `43`) across five numerical and three categorical features. Tests verify both no-drift and intentional-drift scenarios and then pass the resulting drift report into the retraining policy.
+
+The exact verified GitHub Actions commit was:
+
+```text
+97899df9c52bec2aa90e38e8a09aa92ee5756886
+CI run: 34058671816 → SUCCESS
+Deploy Dev run: 34058671804 → SUCCESS
+```
+
+CI recorded Python `3.11.16`, Black `26.5.1`, Ruff `0.16.6`, Pytest `9.1.1`, MLflow `3.16.0`, Databricks SDK `0.135.0`, NumPy `1.26.4`, Pandas `3.0.5`, and SciPy `1.11.1`. The exact test run completed with **72 passed, 3 warnings**.
+
+The Deploy Dev job also completed tests, Databricks CLI setup/version recording, bundle validation, and bundle deployment successfully for the same commit.
+
+This phase does **not** claim a live production drift dataset or automatic production retraining trigger. The synthetic fixture is the verified Phase 12 validation artifact. No serving endpoint or model version was changed by this phase.
+
+**Phase 12 exit criterion: achieved for the synthetic validation scope.**
 
 ## Phase 13 — Production Model Release Strategy
 
@@ -273,4 +291,4 @@ Data → Validation → Training → MLflow
      → Rollback if required
 ```
 
-Phases 1–11 are frozen for their validated scopes. Phase 12 is now the next implementation target. Cloud Run and API Gateway remain deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
+Phases 1–12 are frozen for their validated scopes. Phase 13 is now the next implementation target. Cloud Run and API Gateway remain deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
