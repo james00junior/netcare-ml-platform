@@ -38,8 +38,6 @@ targets:
   dev:
     mode: development
     default: true
-    workspace:
-      host: ${DATABRICKS_HOST}
     presets:
       name_prefix: ""
     variables:
@@ -47,14 +45,10 @@ targets:
 
   staging:
     mode: production
-    workspace:
-      host: ${DATABRICKS_HOST}
     variables:
       catalog_name: netcareaidatabricks
 
   prod:
     mode: production
-    workspace:
-      host: ${DATABRICKS_HOST}
     variables:
       catalog_name: netcareaidatabricks
