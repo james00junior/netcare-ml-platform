@@ -4,7 +4,6 @@ from src.monitoring.drift import detect_data_drift
 from src.retraining.policy import RetrainingPolicy, should_retrain
 from src.retraining.synthetic import make_reference_dataset, make_shifted_dataset
 
-
 NUMERICAL = ["age", "creatinine", "hemoglobin", "sodium", "potassium"]
 CATEGORICAL = ["sex", "admission_type", "admission_source"]
 
