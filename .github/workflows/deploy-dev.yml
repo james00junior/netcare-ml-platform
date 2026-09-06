@@ -23,18 +23,27 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.16"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,api]"
 
+      - name: Record tool versions
+        run: |
+          python --version
+          pip --version
+          databricks --version || true
+
       - name: Run tests
         run: pytest tests/ -v
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
+
+      - name: Record Databricks CLI version
+        run: databricks --version
 
       - name: Validate Databricks bundle
         working-directory: databricks
