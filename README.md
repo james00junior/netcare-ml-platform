@@ -52,7 +52,7 @@ GitHub is the source of truth for application code and deployment configuration.
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
 | Phase 11 | Monitoring + Observability | **COMPLETE / FROZEN — VERIFIED MONITORING SCOPE** |
 | Phase 12 | Drift + Retraining | **COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE** |
-| Phase 13 | Canary + Production Releases | **PENDING** |
+| Phase 13 | Canary + Production Releases | **IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION** |
 
 **Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while Phase 13 is evaluated.
 
@@ -164,9 +164,13 @@ Detailed evidence is maintained in [`docs/retraining.md`](docs/retraining.md).
 
 ## Phase 13 — Canary + Production Releases
 
-**Next and final lifecycle phase.** Phase 13 will validate the controlled release path around the existing candidate/protected serving resources without guessing or changing the protected baseline prematurely.
+**Implemented in GitHub; awaiting CI and deployment validation.**
 
-The final release phase will require evidence for candidate readiness, controlled traffic changes if applicable, post-release health, rollback behavior, and the final production state. A production promotion will only be claimed after the exact Databricks state and exact GitHub commit are verified.
+Phase 13 adds a manual GitHub Actions production release workflow around the existing candidate/protected model versions. It accepts only the currently verified release choices: model `8` for controlled promotion and model `1` for explicit rollback.
+
+The workflow uses the existing production OIDC authentication, Python `3.11.16`, Databricks CLI `1.15.0`, bundle validation, deployment-plan preview, bundle deployment, and post-deployment serving verification. It does not invent a traffic split or modify the isolated candidate endpoint.
+
+Phase 13 is not complete until the exact implementation commit passes CI/deployment validation and the resulting production serving state is independently verified.
 
 ## Technology stack
 
