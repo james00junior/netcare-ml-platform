@@ -1,6 +1,6 @@
 # Phase 11 — Monitoring and Observability
 
-This document defines the monitoring contract for the Netcare ML Platform. It is intentionally implementation-first: a capability is not considered complete merely because it is described here. Live Databricks configuration and observed telemetry must be verified before a milestone is marked complete.
+This document defines the monitoring contract for the Netcare ML Platform. It is implementation-first: a capability is not complete merely because it is described here. Live Databricks configuration and observed telemetry must be verified before a milestone is marked complete.
 
 ## Objectives
 
@@ -15,9 +15,25 @@ Phase 11 provides operational visibility across:
 
 The monitoring architecture remains Databricks-centric and does not introduce Cloud Run or API Gateway.
 
+## Evidence and change-control rules
+
+The repository follows the verification procedure in [`docs/verification-record.md`](verification-record.md).
+
+For Phase 11, the following distinctions are mandatory:
+
+- **Implemented** — code/configuration exists in GitHub.
+- **Queryable** — the target Databricks object can be queried successfully.
+- **Observed** — the expected field/value was actually returned.
+- **Validated** — the observed behaviour passed a defined test or comparison.
+- **Complete** — the phase exit criteria are satisfied in the target environment.
+
+These terms are not interchangeable. In particular, a queryable table with zero matching rows is not evidence of populated request records.
+
+Every monitoring change must be tied to the exact Git commit being tested. CI or deployment results from another commit must not be used as evidence for the current change.
+
 ## Verified live evidence — 2026-09-06
 
-The Phase 11 telemetry inspection has now been performed against both the protected baseline and isolated candidate endpoint:
+The Phase 11 telemetry inspection was performed against both the protected baseline and isolated candidate endpoint:
 
 ```text
 Protected baseline
@@ -101,9 +117,30 @@ system.serving.endpoint_usage
 system.serving.served_entities
 ```
 
-`system.serving.endpoint_usage` was verified with 114,721,404 rows and a request-time range from `2026-05-17 00:00:00.374000` through `2026-09-06 18:11:59.375000`. Its observed schema contains per-request fields including `request_time`, `status_code`, `requester`, `databricks_request_id`, `client_request_id`, and `served_entity_id`.
+The observed `system.serving.endpoint_usage` schema contains:
 
-`system.serving.served_entities` was verified with 9,645 rows. Its observed schema contains endpoint/model identity fields including `served_entity_id`, `endpoint_name`, `served_entity_name`, `entity_name`, `entity_version`, `endpoint_config_version`, `custom_model_config`, `change_time`, and `endpoint_delete_time`.
+```text
+request_time
+status_code
+requester
+databricks_request_id
+client_request_id
+served_entity_id
+```
+
+The observed `system.serving.served_entities` schema contains:
+
+```text
+served_entity_id
+endpoint_name
+served_entity_name
+entity_name
+entity_version
+endpoint_config_version
+custom_model_config
+change_time
+endpoint_delete_time
+```
 
 The v8 candidate served entity was queried directly from `system.serving.served_entities` and verified as:
 
@@ -120,7 +157,7 @@ endpoint_delete_time:    null
 
 A direct query of `system.serving.endpoint_usage` for that exact v8 `served_entity_id` succeeded but returned **zero rows**. Therefore the governed usage-table path is confirmed as queryable, but v8 request records have **not yet been observed in that table**. No inference-record population is being assumed from endpoint success alone.
 
-### Observed endpoint configuration
+## Observed endpoint configuration
 
 The live endpoint GET responses previously verified:
 
@@ -307,9 +344,9 @@ Monitoring must follow the same security principles as the serving system:
 
 ### Step 11.1 — Inspect live serving telemetry
 
-Identify the actual telemetry, endpoint metrics, inference records, system tables, and permissions available in the deployed Databricks environment.
+**Status: VERIFIED FOR ENDPOINT TELEMETRY + SERVING SYSTEM-TABLE ACCESS.**
 
-**Current status:** **VERIFIED FOR ENDPOINT TELEMETRY + SERVING SYSTEM-TABLE ACCESS.** Live endpoint metrics for both the protected v1 baseline and isolated v8 candidate have been observed. `system.serving.endpoint_usage` and `system.serving.served_entities` are queryable, and the exact v8 served entity has been verified. The v8-specific `endpoint_usage` query returned zero rows, so request-record population remains unverified.
+Live endpoint metrics for both the protected v1 baseline and isolated v8 candidate have been observed. `system.serving.endpoint_usage` and `system.serving.served_entities` are queryable, and the exact v8 served entity has been verified. The v8-specific `endpoint_usage` query returned zero rows, so request-record population remains unverified.
 
 **Exit criterion:** observed source/schema documented with evidence. **Met for the inspected endpoint telemetry and system-table surfaces; request-record population remains open.**
 
@@ -319,11 +356,15 @@ Create or configure the minimum governed monitoring datasets required for servin
 
 **Exit criterion:** monitoring data is queryable and access-controlled.
 
+**Guardrail:** do not select or document a monitoring table/schema until it has been observed in the target Databricks workspace. If a candidate source is empty, record it as empty and identify the next approved source through evidence rather than assumption.
+
 ### Step 11.3 — Implement health and quality checks
 
 Implement endpoint, request, schema, completeness, and range checks.
 
 **Exit criterion:** checks execute successfully against representative data.
+
+**Guardrail:** health state may be reported only from observed endpoint state fields. Missing telemetry must remain unknown rather than being silently converted to a healthy or zero value.
 
 ### Step 11.4 — Implement prediction and drift monitoring
 
@@ -331,17 +372,23 @@ Calculate prediction-distribution and feature-drift signals using explicit basel
 
 **Exit criterion:** drift calculations reproduce known baseline behaviour and identify controlled distribution changes.
 
+**Guardrail:** no drift or prediction monitoring is marked live until the underlying prediction/input records and their schemas are actually observed.
+
 ### Step 11.5 — Implement labelled-outcome evaluation
 
 Join predictions to subsequently available outcomes and calculate the agreed model metrics.
 
 **Exit criterion:** metrics are reproducible and comparable with the frozen validation baseline.
 
+**Guardrail:** do not invent an outcome join, label source, cohort definition, or retention window. Each must be verified before implementation.
+
 ### Step 11.6 — Add alerts and operational dashboard
 
 Expose actionable alerts and the monitoring dashboard after thresholds have been evidenced or approved.
 
 **Exit criterion:** a controlled test produces the expected alert and dashboard signal.
+
+**Guardrail:** numeric thresholds are not considered approved merely because they appear in documentation. Record their evidence or explicit approval before enabling alerts.
 
 ## Phase 11 completion rule
 
