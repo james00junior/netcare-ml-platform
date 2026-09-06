@@ -38,7 +38,7 @@ existing drift detector
 
 This project does not claim an automated production retraining trigger. The existing Databricks bundle contains the validated training workflow, but no production drift-data source or scheduled retraining trigger has been evidenced. Phase 12 therefore validates the decision and test path with synthetic data rather than fabricating live telemetry or a production schedule.
 
-The existing training notebook remains the retraining execution path: it loads the governed raw dataset, validates it, trains the baseline/GBDT candidates, applies the existing quality gate, and registers/promotes the approved candidate. fileciteturn222file0
+The existing training notebook remains the retraining execution path: it loads the governed raw dataset, validates it, trains the baseline/GBDT candidates, applies the existing quality gate, and registers/promotes the approved candidate.
 
 ## Frozen boundary
 
