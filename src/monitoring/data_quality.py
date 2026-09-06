@@ -34,9 +34,7 @@ def validate_required_columns(
     missing = tuple(column for column in required if column not in frame.columns)
     unexpected = tuple(column for column in observed if column not in required)
     null_counts = {
-        column: int(frame[column].isna().sum())
-        for column in required
-        if column in frame.columns
+        column: int(frame[column].isna().sum()) for column in required if column in frame.columns
     }
 
     return DataQualityResult(
