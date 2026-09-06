@@ -16,12 +16,12 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 | Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE / FROZEN** |
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
-| Phase 10 | Security + Secrets + IAM | **IN PROGRESS** |
-| Phase 11 | Monitoring + Observability | **PENDING** |
+| Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
+| Phase 11 | Monitoring + Observability | **IN PROGRESS** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-**Freeze rule:** Phases 1–9 are closed. Their validated implementation is not modified while Phase 10–13 work proceeds. The protected v1 production baseline is never touched.
+**Freeze rule:** Phases 1–9 are closed. Their validated implementation is not modified while Phase 10–13 work proceeds. The protected v1 serving baseline is never touched.
 
 ## Architecture Decision — Simplified Databricks-Centric Serving
 
@@ -135,7 +135,7 @@ A representative client integration can authenticate to Databricks Model Serving
 
 ## Phase 10 — Security and Secrets
 
-Phase 10 is now implementing security around the actual production boundary.
+Phase 10 deployment authentication and production bundle deployment have now been validated.
 
 ```text
 GitHub Actions
@@ -148,10 +148,45 @@ Databricks Authentication
 Databricks Bundles
       │
       ▼
-Model Serving
+Production Databricks Resources
 ```
 
 Production application/runtime credentials remain outside source control. GitHub CI/CD uses Databricks GitHub OIDC rather than a long-lived Databricks token.
+
+Verified production deployment checkpoint:
+
+```text
+Commit:
+2104e7e849f00b56cdd2593171ac3146c91b7d4a
+
+Environment:
+prod
+
+Databricks CLI:
+1.15.0
+
+Tests:
+41 passed
+
+Bundle validation:
+SUCCESS
+
+Bundle deployment:
+SUCCESS
+
+Resources created:
+- train_readmission_model
+- readmission_model_candidate_endpoint
+- readmission_model_endpoint
+
+Resources changed:
+0
+
+Resources deleted:
+0
+```
+
+The production bundle is therefore deployed successfully. Runtime production serving inference remains a separate verification checkpoint and is not inferred from deployment success alone.
 
 Current Phase 10 controls include:
 
@@ -164,35 +199,50 @@ Current Phase 10 controls include:
 - a committed record of verified build/runtime versions
 - a committed `uv.lock` containing the validated 240-package transitive dependency resolution
 
-The dependency-locking follow-up is now complete. `pyproject.toml` remains the source of truth for direct dependencies, while `uv.lock` records the resolved transitive dependency graph.
+The dependency-locking follow-up is complete. `pyproject.toml` remains the source of truth for direct dependencies, while `uv.lock` records the resolved transitive dependency graph.
 
 ## Phase 11 — Monitoring and Observability
 
-Monitoring will operate at three levels.
+Phase 11 is active. The implementation plan is maintained in [`docs/monitoring.md`](monitoring.md).
 
-### Platform
+### Monitoring layers
 
-- serving latency
-- request volume
-- errors
-- endpoint availability
+**Platform**
 
-### Data
+- endpoint health and availability;
+- request volume and throughput;
+- P50/P99 latency where available;
+- error rates and timeouts;
+- deployment and served-model state;
+- serving resource utilisation where exposed.
 
-- missing values
-- schema changes
-- feature distribution changes
-- data drift
+**Data**
 
-### Model
+- completeness and missing values;
+- schema compatibility;
+- feature range and categorical-value checks;
+- feature distribution changes;
+- freshness where timestamps are available;
+- drift against an approved baseline.
 
-- prediction distribution
-- confidence
-- actual outcomes
-- ROC-AUC
-- Recall
-- Precision
-- F1
+**Model**
+
+- prediction and probability distributions;
+- risk-tier distributions;
+- model-version usage;
+- labelled-outcome ROC-AUC, Recall, Precision, and F1;
+- regression against the frozen validation baseline.
+
+### Phase 11 implementation sequence
+
+1. Inspect the actual serving telemetry and available monitoring sources in the target Databricks workspace.
+2. Establish governed monitoring datasets and permissions.
+3. Implement endpoint, request, schema, and data-quality checks.
+4. Implement prediction and feature-drift calculations using explicit baselines.
+5. Implement labelled-outcome performance evaluation.
+6. Add actionable alerts and the operational dashboard.
+
+**Evidence rule:** a documented capability is not marked complete until its live configuration and observed behaviour are validated in Databricks.
 
 ## Phase 12 — Drift Detection and Retraining
 
@@ -200,12 +250,12 @@ Monitoring will operate at three levels.
 Production Data
       │
       ▼
-Drift Detection
+Monitoring / Drift Signals
       │
-      ├── No drift → Continue
+      ├── No actionable drift → Continue
       │
       ▼
-Significant drift
+Significant drift or scheduled trigger
       │
       ▼
 Retraining Workflow
@@ -224,7 +274,7 @@ Register New Version
 Controlled Serving Release
 ```
 
-Retraining can be scheduled, triggered by drift, or triggered by new labelled outcomes.
+Retraining can be scheduled, triggered by validated drift signals, or triggered by newly labelled outcomes.
 
 ## Phase 13 — Production Model Release Strategy
 
@@ -260,4 +310,4 @@ Data → Validation → Training → MLflow
      → Retraining → Validation → Controlled Release
 ```
 
-Phases 1–9 remain frozen. Phase 10 is the active security and identity hardening phase. Cloud Run and API Gateway remain deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
+Phases 1–9 remain frozen. Phase 10 deployment authentication and production bundle deployment are validated. Phase 11 is the active monitoring and observability implementation phase. Cloud Run and API Gateway remain deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
