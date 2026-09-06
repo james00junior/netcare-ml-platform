@@ -2,6 +2,9 @@ resources:
   model_serving_endpoints:
     readmission_model_endpoint:
       name: dev-netcare-readmission
+      ai_gateway:
+        usage_tracking_config:
+          enabled: true
       config:
         served_entities:
           - entity_name: ${var.registered_model_name}
@@ -15,6 +18,9 @@ resources:
 
     readmission_model_candidate_endpoint:
       name: dev-netcare-readmission-candidate
+      ai_gateway:
+        usage_tracking_config:
+          enabled: true
       config:
         served_entities:
           - entity_name: ${var.registered_model_name}
