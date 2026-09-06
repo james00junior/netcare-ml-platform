@@ -7,7 +7,7 @@ name = "netcare-ml-platform"
 version = "0.1.0"
 description = "Production ML platform for hospital 30-day readmission prediction"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 license = {text = "Proprietary"}
 authors = [
     {name = "Netcare ML Team"}
