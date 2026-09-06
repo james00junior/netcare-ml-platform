@@ -38,6 +38,8 @@ targets:
   dev:
     mode: production
     default: true
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     presets:
       name_prefix: "ci-"
     variables:
