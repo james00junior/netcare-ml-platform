@@ -6,7 +6,6 @@ import httpx
 
 from src.serving.observability import get_logger
 
-
 logger = get_logger()
 
 
