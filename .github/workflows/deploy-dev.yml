@@ -30,20 +30,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,api]"
 
-      - name: Record tool versions
+      - name: Record Python and package versions
         run: |
           python --version
           pip --version
-          databricks --version || true
+          pytest --version
+          black --version
+          ruff --version
 
       - name: Run tests
         run: pytest tests/ -v
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
+        with:
+          version: "1.15.0"
 
       - name: Record Databricks CLI version
-        run: databricks --version
+        run: databricks version --output json
 
       - name: Validate Databricks bundle
         working-directory: databricks
