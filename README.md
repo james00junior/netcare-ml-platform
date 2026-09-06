@@ -42,7 +42,7 @@ The baseline architecture deliberately avoids an additional API compute layer. C
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
-| Phase 11 | Monitoring + Observability | **IN PROGRESS — LIVE TELEMETRY VERIFIED** |
+| Phase 11 | Monitoring + Observability | **IN PROGRESS — LIVE TELEMETRY + GOVERNED SYSTEM TABLE ACCESS VERIFIED** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
@@ -251,18 +251,18 @@ The repository includes a committed `uv.lock` containing the validated 240-packa
 
 ## Phase 11 — Monitoring + Observability
 
-Phase 11 is now active, with the first live Databricks monitoring surface verified against the isolated v8 candidate endpoint.
+Phase 11 is now active, with live Databricks endpoint telemetry and governed serving system-table access verified against the protected baseline and isolated v8 candidate.
 
 ### Verified live serving telemetry
 
 Observed from `cidev-netcare-readmission-candidate` / `readmission_model-8`:
 
 ```text
-cpu_usage_percentage                 2.344062231666667
-mem_usage_percentage                 6.823611259460449
-request_count_total                  0
-request_4xx_count_total              0
-request_5xx_count_total              0
+cpu_usage_percentage                  2.344062231666667
+mem_usage_percentage                  6.823611259460449
+request_count_total                   0
+request_4xx_count_total               0
+request_5xx_count_total               0
 provisioned_concurrent_requests_total 4
 ```
 
@@ -275,22 +275,50 @@ model_queue_time_ms
 
 The observed snapshot contained zero request observations for those histograms and zero requests/errors for the reported minute. This is a telemetry observation, not evidence that the endpoint cannot serve requests; v8 runtime inference has separately been verified successfully.
 
+### Verified governed serving system tables
+
+The target workspace exposes the following Unity Catalog system tables:
+
+```text
+system.serving.endpoint_usage
+system.serving.served_entities
+```
+
+The observed `system.serving.endpoint_usage` schema contains per-request fields including `request_time`, `status_code`, `requester`, `databricks_request_id`, `client_request_id`, and `served_entity_id`.
+
+The observed `system.serving.served_entities` schema contains endpoint/model identity fields including `served_entity_id`, `endpoint_name`, `served_entity_name`, `entity_name`, `entity_version`, `endpoint_config_version`, `custom_model_config`, `change_time`, and `endpoint_delete_time`.
+
+The v8 candidate served entity was queried directly from `system.serving.served_entities` and verified as:
+
+```text
+served_entity_id:      362c5dbb1cf448789afbb4ee6a687712
+endpoint_name:         cidev-netcare-readmission-candidate
+served_entity_name:    readmission_model-8
+entity_name:           netcareaidatabricks.default.readmission_model
+entity_version:        8
+endpoint_config_version: 1
+change_time:            2026-09-06T16:00:44.803Z
+endpoint_delete_time:  null
+```
+
+A direct query of `system.serving.endpoint_usage` for that exact v8 `served_entity_id` succeeded but returned **zero rows**. Therefore the governed usage-table path is confirmed as queryable, but v8 request records have **not yet been observed in that table**. No inference-record population is being assumed from endpoint success alone.
+
 ### Verified candidate endpoint configuration
 
 ```text
-endpoint:            cidev-netcare-readmission-candidate
-served model:        readmission_model-8
-registered version:  8
-traffic:             100%
-endpoint state:      READY
-config update:       NOT_UPDATING
-deployment:           DEPLOYMENT_READY
-workload:             Small / CPU
-scale to zero:        enabled
-config version:       1
+endpoint:             cidev-netcare-readmission-candidate
+served model:         readmission_model-8
+registered version:   8
+traffic:              100% within candidate endpoint
+endpoint state:       READY
+config update:        NOT_UPDATING
+deployment:            DEPLOYMENT_READY
+workload:              Small / CPU
+scale to zero:         enabled
+config version:        1
 ```
 
-No telemetry configuration change has been made. The endpoint GET response did not expose an inference-table configuration in the returned `config` object. This does **not** establish that no other monitoring capability exists; the workspace's inference-record and governed monitoring surfaces still require inspection.
+No serving configuration was changed during this monitoring inspection.
 
 Monitoring remains split into three levels:
 
@@ -322,7 +350,7 @@ Monitoring remains split into three levels:
 - ROC-AUC, Recall, Precision, and F1;
 - regression against the frozen validation baseline.
 
-The Phase 11 implementation plan is documented in [`docs/monitoring.md`](docs/monitoring.md). The implementation will prefer Databricks endpoint health metrics, Unity Catalog governed monitoring data, system tables, and inference logging where appropriate. No telemetry feature is enabled merely by documentation; live configuration is validated before being marked complete.
+The Phase 11 implementation plan is documented in [`docs/monitoring.md`](docs/monitoring.md). The implementation will use verified Databricks endpoint telemetry and governed system tables where they provide the required evidence. No telemetry feature is enabled merely by documentation; live configuration and observed data are validated before being marked complete.
 
 ## Phase 12 — Drift + Retraining
 
