@@ -1,6 +1,6 @@
 # Netcare ML Platform — Production Roadmap
 
-This document is the source-of-truth roadmap for the production lifecycle. Completed milestones are frozen once validated by evidence.
+This document is the source-of-truth roadmap for the production lifecycle. Completed milestones are frozen once validated by evidence. The verification and change-control procedure is defined in [`docs/verification-record.md`](verification-record.md).
 
 ## Milestone Status
 
@@ -17,11 +17,49 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
-| Phase 11 | Monitoring + Observability | **IN PROGRESS** |
+| Phase 11 | Monitoring + Observability | **IN PROGRESS — Step 11.1 VERIFIED** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
 **Freeze rule:** Phases 1–9 are closed. Their validated implementation is not modified while Phase 10–13 work proceeds. The protected v1 serving baseline is never touched.
+
+## Evidence rule
+
+A milestone is not complete because code or documentation exists. The required sequence is:
+
+```text
+Inspect actual state
+      ↓
+Record exact evidence
+      ↓
+Make one targeted change
+      ↓
+Run lint / format / tests
+      ↓
+Verify CI for the exact commit
+      ↓
+Verify deployment for the exact commit (when applicable)
+      ↓
+Verify live Databricks state (when applicable)
+      ↓
+Update documentation
+      ↓
+Freeze checkpoint
+```
+
+Do not use an earlier or different commit's CI/deployment result as evidence for the current commit. Do not infer an unobserved Databricks configuration, table, permission, model version, or runtime value.
+
+## Latest verified repository checkpoint
+
+```text
+Commit: cc47b912efd86353f93c2115945e74cb348faa91
+Message: Fix monitoring exports lint ordering
+
+CI: PASS
+Deploy Dev: PASS
+```
+
+This checkpoint passed the repository lint, format, and test stages and the Databricks bundle deployment workflow. The next Phase 11 step can therefore proceed without reopening the completed CI/debugging work.
 
 ## Architecture Decision — Simplified Databricks-Centric Serving
 
@@ -203,46 +241,56 @@ The dependency-locking follow-up is complete. `pyproject.toml` remains the sourc
 
 ## Phase 11 — Monitoring and Observability
 
-Phase 11 is active. The implementation plan is maintained in [`docs/monitoring.md`](monitoring.md).
+Phase 11 is active. The detailed implementation plan and live evidence are maintained in [`docs/monitoring.md`](monitoring.md). The operational no-guess/change-control rules are maintained in [`docs/verification-record.md`](verification-record.md).
 
-### Monitoring layers
+### Step 11.1 — Inspect actual serving telemetry and governed sources
 
-**Platform**
+**Status: VERIFIED FOR ENDPOINT TELEMETRY + SERVING SYSTEM-TABLE ACCESS.**
 
-- endpoint health and availability;
-- request volume and throughput;
-- P50/P99 latency where available;
-- error rates and timeouts;
-- deployment and served-model state;
-- serving resource utilisation where exposed.
+Verified candidate identity:
 
-**Data**
+```text
+Endpoint:                 cidev-netcare-readmission-candidate
+Served model:             readmission_model-8
+Registered model:         netcareaidatabricks.default.readmission_model
+Registered version:       8
+Served entity ID:         362c5dbb1cf448789afbb4ee6a687712
+Endpoint config version:  1
+```
 
-- completeness and missing values;
-- schema compatibility;
-- feature range and categorical-value checks;
-- feature distribution changes;
-- freshness where timestamps are available;
-- drift against an approved baseline.
+Verified candidate serving state:
 
-**Model**
+```text
+READY
+NOT_UPDATING
+DEPLOYMENT_READY
+Small / CPU
+scale-to-zero enabled
+100% traffic within candidate endpoint
+```
 
-- prediction and probability distributions;
-- risk-tier distributions;
-- model-version usage;
-- labelled-outcome ROC-AUC, Recall, Precision, and F1;
-- regression against the frozen validation baseline.
+Verified system-table surfaces:
 
-### Phase 11 implementation sequence
+```text
+system.serving.endpoint_usage
+system.serving.served_entities
+```
 
-1. Inspect the actual serving telemetry and available monitoring sources in the target Databricks workspace.
-2. Establish governed monitoring datasets and permissions.
-3. Implement endpoint, request, schema, and data-quality checks.
-4. Implement prediction and feature-drift calculations using explicit baselines.
-5. Implement labelled-outcome performance evaluation.
-6. Add actionable alerts and the operational dashboard.
+The exact v8 `served_entity_id` was resolved from `system.serving.served_entities`. A direct query against `system.serving.endpoint_usage` for that exact ID succeeded but returned zero rows. Consequently, system-table access is verified, but v8 request-record population remains open.
 
-**Evidence rule:** a documented capability is not marked complete until its live configuration and observed behaviour are validated in Databricks.
+The live v8 telemetry snapshot also exposed CPU, memory, request/error, latency, model-queue-time, and provisioned-concurrency metrics. The request/error counters and histogram observations were zero in the inspected snapshot; this is not evidence that serving is broken because direct v8 inference was separately verified.
+
+**Step 11.1 exit criterion:** met for the inspected telemetry and system-table surfaces; request-record population remains explicitly open.
+
+### Remaining Phase 11 sequence
+
+1. **Step 11.2:** establish governed monitoring data and verify the actual source/schema/access controls.
+2. **Step 11.3:** implement health and data-quality checks against verified data.
+3. **Step 11.4:** implement prediction and feature-drift monitoring only after the underlying records are observed.
+4. **Step 11.5:** implement labelled-outcome evaluation only after the outcome source and join are verified.
+5. **Step 11.6:** add alerts and dashboards only after thresholds are evidenced or explicitly approved.
+
+Each step must produce a checkpoint before the next step begins. Empty or missing telemetry is recorded as such; it is never silently converted into populated records or zero-capability assumptions.
 
 ## Phase 12 — Drift Detection and Retraining
 
