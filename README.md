@@ -2,7 +2,11 @@
 
 Production-oriented ML platform for **30-day hospital readmission prediction**, designed as a **Databricks-centric production ML system on GCP**.
 
-## Architecture
+## Project scope
+
+This project implements and validates the production ML lifecycle from governed data ingestion through model training, evaluation, registry, serving, integration, security, monitoring, drift detection, retraining decisioning, and controlled release preparation.
+
+The verified baseline deliberately avoids infrastructure that is not required by the workload. Databricks Model Serving is the production serving boundary; a separate Cloud Run/API Gateway layer is not part of the baseline.
 
 ```text
 Hospital / Clinical Sources
@@ -21,6 +25,12 @@ UC Model Registry
 Databricks Model Serving
           ↓
 Existing Hospital / Application Systems
+          ↓
+Monitoring → Drift Detection
+          ↓
+Retraining Decision → Validation
+          ↓
+Controlled Release / Rollback
 ```
 
 GitHub is the source of truth for application code and deployment configuration. GCS provides cloud data storage. Databricks provides the ML lifecycle, governance, orchestration, registry, and serving platform.
@@ -44,7 +54,7 @@ GitHub is the source of truth for application code and deployment configuration.
 | Phase 12 | Drift + Retraining | **COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-**Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while later lifecycle work proceeds.
+**Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while Phase 13 is evaluated.
 
 ## Verification and no-guessing policy
 
@@ -96,7 +106,7 @@ Traffic: 100%
 State: READY
 ```
 
-The protected v1 endpoint has not been changed as part of candidate validation, Phase 11, or Phase 12.
+The protected v1 endpoint has not been changed through Phase 12.
 
 ## Phase 9 — Existing-System Integration
 
@@ -139,15 +149,24 @@ The verified `system.serving.endpoint_usage` query for served entity `362c5dbb1c
 
 Phase 12 adds deterministic synthetic reference/current populations, exercises the existing drift detector, and evaluates an explicit auditable retraining policy. The end-to-end synthetic drift → retraining decision path is covered by CI tests.
 
-The verified implementation uses the existing project dependency versions and CI environment; Phase 12 did not change the dependency stack or serving versions.
+Verified exact implementation checkpoint:
 
-The phase does **not** claim a live production drift dataset or an automatic production retraining trigger. The synthetic fixture is the explicit validation artifact for this project phase. A future production retraining workflow must independently verify its data source, trigger, permissions, job configuration, training result, quality gate, registry action, and promotion path.
+```text
+Commit: 97899df9c52bec2aa90e38e8a09aa92ee5756886
+CI run: 34058671816 → SUCCESS
+Deploy Dev run: 34058671804 → SUCCESS
+Tests: 72 passed, 3 warnings
+```
 
-Detailed Phase 12 evidence is maintained in [`docs/retraining.md`](docs/retraining.md).
+Phase 12 does not claim a live production drift dataset or an automatic production retraining trigger. The synthetic fixture is the verified validation artifact. Future production retraining must independently verify its source, trigger, permissions, job configuration, training result, quality gate, registry action, and promotion path.
+
+Detailed evidence is maintained in [`docs/retraining.md`](docs/retraining.md).
 
 ## Phase 13 — Canary + Production Releases
 
-Pending. Production release work will use candidate validation, controlled traffic changes, post-release monitoring, and rollback to a previously trusted version. The protected v1 baseline remains the rollback reference until a later release is explicitly validated and promoted.
+**Next and final lifecycle phase.** Phase 13 will validate the controlled release path around the existing candidate/protected serving resources without guessing or changing the protected baseline prematurely.
+
+The final release phase will require evidence for candidate readiness, controlled traffic changes if applicable, post-release health, rollback behavior, and the final production state. A production promotion will only be claimed after the exact Databricks state and exact GitHub commit are verified.
 
 ## Technology stack
 
@@ -197,8 +216,8 @@ Data → Validation → Leakage-safe preprocessing
      → Existing System Integration
      → Security / IAM
      → Monitoring → Drift Detection
-     → Retraining → Validation → Controlled Release
-     → Rollback if required
+     → Retraining Decision → Validation
+     → Controlled Release → Rollback if required
 ```
 
 Quality gates require ROC-AUC ≥ 0.70, Recall ≥ 0.60, data validation, model tests, and no unacceptable regression when a production comparison is available.
