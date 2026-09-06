@@ -97,9 +97,11 @@ Phase 8 and Phase 9 remain frozen while Phase 10 security hardening proceeds.
 
 ## Dependency locking status
 
-There is currently **no `uv.lock` file** in the repository. The direct dependencies are version-pinned, but the complete transitive dependency graph is not lock-pinned. This repository must therefore be described as **direct-dependency version-pinned, not fully lockfile-reproducible**.
+The repository now includes `uv.lock` as the transitive dependency lockfile. It was generated against the canonical `main` configuration using the observed local resolver `uv 0.12.7`.
 
-A future dependency-locking change must add and commit the lock file only after it has been generated and validated in the project environment.
+The validated lock resolution contains **240 packages** and satisfies the repository Python constraint `>=3.11,<3.14`. `uv lock --check` passes against the generated lockfile.
+
+The lockfile is therefore the committed record of the resolved dependency graph; `pyproject.toml` remains the source of truth for direct dependency declarations.
 
 ## Change-control rule
 
@@ -108,5 +110,6 @@ When changing a runtime, dependency, GitHub Action, Databricks CLI, or deploymen
 1. verify the version/configuration from the actual CI or deployment environment;
 2. update this record;
 3. update the corresponding source configuration;
-4. run CI;
-5. do not describe an unobserved value as verified.
+4. regenerate and validate `uv.lock` when dependency declarations change;
+5. run CI;
+6. do not describe an unobserved value as verified.
