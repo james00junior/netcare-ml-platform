@@ -42,11 +42,41 @@ The baseline architecture deliberately avoids an additional API compute layer. C
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
-| Phase 11 | Monitoring + Observability | **IN PROGRESS — LIVE TELEMETRY + GOVERNED SYSTEM TABLE ACCESS VERIFIED** |
+| Phase 11 | Monitoring + Observability | **IN PROGRESS — Step 11.1 VERIFIED** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
 **Freeze rule:** Phases 1–9 are closed. Their validated implementation is not modified while Phase 10–13 work proceeds. The protected v1 serving baseline is never changed as part of candidate development.
+
+## Verification and no-guessing policy
+
+The repository now maintains an explicit verification record at [`docs/verification-record.md`](docs/verification-record.md). It is the operational guardrail for development and debugging.
+
+The rule is simple:
+
+```text
+Inspect actual state
+      ↓
+Record exact evidence
+      ↓
+Make one targeted change
+      ↓
+Run lint / format / tests
+      ↓
+Verify CI for the exact commit
+      ↓
+Verify deployment for the exact commit when applicable
+      ↓
+Verify live Databricks state when applicable
+      ↓
+Update documentation
+      ↓
+Freeze checkpoint
+```
+
+Do not guess model versions, endpoint configuration, tables, permissions, runtime versions, or deployment state. A result from a different commit is not evidence for the current commit. Empty telemetry is recorded as empty, not converted into an assumption that records exist or do not exist.
+
+Documentation distinguishes **implemented**, **queryable**, **observed**, **validated**, and **complete**. These states are not interchangeable.
 
 ## Validated serving baseline
 
@@ -251,7 +281,7 @@ The repository includes a committed `uv.lock` containing the validated 240-packa
 
 ## Phase 11 — Monitoring + Observability
 
-Phase 11 is now active, with live Databricks endpoint telemetry and governed serving system-table access verified against the protected baseline and isolated v8 candidate.
+Phase 11 is now active. Step 11.1 is **verified for live endpoint telemetry and governed serving system-table access**. The detailed evidence and implementation sequence are maintained in [`docs/monitoring.md`](docs/monitoring.md).
 
 ### Verified live serving telemetry
 
@@ -284,73 +314,58 @@ system.serving.endpoint_usage
 system.serving.served_entities
 ```
 
-The observed `system.serving.endpoint_usage` schema contains per-request fields including `request_time`, `status_code`, `requester`, `databricks_request_id`, `client_request_id`, and `served_entity_id`.
+The observed `system.serving.endpoint_usage` schema contains:
 
-The observed `system.serving.served_entities` schema contains endpoint/model identity fields including `served_entity_id`, `endpoint_name`, `served_entity_name`, `entity_name`, `entity_version`, `endpoint_config_version`, `custom_model_config`, `change_time`, and `endpoint_delete_time`.
+```text
+request_time
+status_code
+requester
+databricks_request_id
+client_request_id
+served_entity_id
+```
+
+The observed `system.serving.served_entities` schema contains:
+
+```text
+served_entity_id
+endpoint_name
+served_entity_name
+entity_name
+entity_version
+endpoint_config_version
+custom_model_config
+change_time
+endpoint_delete_time
+```
 
 The v8 candidate served entity was queried directly from `system.serving.served_entities` and verified as:
 
 ```text
-served_entity_id:      362c5dbb1cf448789afbb4ee6a687712
-endpoint_name:         cidev-netcare-readmission-candidate
-served_entity_name:    readmission_model-8
-entity_name:           netcareaidatabricks.default.readmission_model
-entity_version:        8
+served_entity_id:        362c5dbb1cf448789afbb4ee6a687712
+endpoint_name:           cidev-netcare-readmission-candidate
+served_entity_name:      readmission_model-8
+entity_name:             netcareaidatabricks.default.readmission_model
+entity_version:          8
 endpoint_config_version: 1
-change_time:            2026-09-06T16:00:44.803Z
-endpoint_delete_time:  null
+change_time:             2026-09-06T16:00:44.803Z
+endpoint_delete_time:    null
 ```
 
 A direct query of `system.serving.endpoint_usage` for that exact v8 `served_entity_id` succeeded but returned **zero rows**. Therefore the governed usage-table path is confirmed as queryable, but v8 request records have **not yet been observed in that table**. No inference-record population is being assumed from endpoint success alone.
 
-### Verified candidate endpoint configuration
+### Current Phase 11 sequence
 
 ```text
-endpoint:             cidev-netcare-readmission-candidate
-served model:         readmission_model-8
-registered version:   8
-traffic:              100% within candidate endpoint
-endpoint state:       READY
-config update:        NOT_UPDATING
-deployment:            DEPLOYMENT_READY
-workload:              Small / CPU
-scale to zero:         enabled
-config version:        1
+11.1  Live telemetry + governed source inspection  ← VERIFIED
+11.2  Establish governed monitoring data           ← NEXT
+11.3  Health + data-quality checks
+11.4  Prediction + drift monitoring
+11.5  Labelled-outcome evaluation
+11.6  Alerts + operational dashboard
 ```
 
-No serving configuration was changed during this monitoring inspection.
-
-Monitoring remains split into three levels:
-
-### Platform
-
-- endpoint health and availability;
-- request rate and throughput;
-- P50/P99 latency;
-- model inference latency;
-- request queue time;
-- error rates;
-- serving resource utilisation;
-- deployment and model-version state.
-
-### Data
-
-- missing values;
-- schema changes;
-- feature distribution changes;
-- freshness and completeness;
-- feature drift against an appropriate baseline.
-
-### Model
-
-- prediction distribution;
-- confidence/probability distribution;
-- model-version usage;
-- labelled-outcome performance when ground truth becomes available;
-- ROC-AUC, Recall, Precision, and F1;
-- regression against the frozen validation baseline.
-
-The Phase 11 implementation plan is documented in [`docs/monitoring.md`](docs/monitoring.md). The implementation will use verified Databricks endpoint telemetry and governed system tables where they provide the required evidence. No telemetry feature is enabled merely by documentation; live configuration and observed data are validated before being marked complete.
+Each step requires its own evidence checkpoint. We do not advance a step based on documentation alone.
 
 ## Phase 12 — Drift + Retraining
 
@@ -419,12 +434,14 @@ Quality gates require ROC-AUC ≥ 0.70, Recall ≥ 0.60, data validation, model 
 ## Engineering principles
 
 - Evidence before claims.
+- Inspect actual state before proposing changes.
 - Freeze known-good components before debugging unknown components.
 - Make small, targeted changes.
+- Verify CI/deployment against the exact commit being discussed.
 - Repair failed candidates instead of unnecessarily abandoning them.
 - Preserve rollback paths.
 - Match infrastructure to workload requirements.
 - Prefer the minimum architecture that satisfies the requirements.
 - Minimize patient data in logs and telemetry.
 
-Detailed engineering investigations belong in `docs/`; [`docs/production-roadmap.md`](docs/production-roadmap.md) is the lifecycle source of truth and this README records the current verified architecture and status.
+Detailed engineering investigations belong in `docs/`; [`docs/production-roadmap.md`](docs/production-roadmap.md) is the lifecycle source of truth, [`docs/monitoring.md`](docs/monitoring.md) is the Phase 11 source of truth, and [`docs/verification-record.md`](docs/verification-record.md) is the operational change-control and evidence record.
