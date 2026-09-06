@@ -131,11 +131,7 @@ def test_databricks_client_sends_request_id_without_payload_logging(monkeypatch)
             return None
 
         def json(self):
-            return {
-                "predictions": [
-                    {"predicted_label": 0, "probability": 0.2, "risk_tier": "low"}
-                ]
-            }
+            return {"predictions": [{"predicted_label": 0, "probability": 0.2, "risk_tier": "low"}]}
 
     def fake_post(url, **kwargs):
         captured["url"] = url
