@@ -163,7 +163,7 @@ Detailed controls are documented in [`docs/security.md`](docs/security.md).
 
 ## Version and build record
 
-The repository now maintains a single version/configuration record at [`docs/build-and-runtime-versions.md`](docs/build-and-runtime-versions.md).
+The repository maintains a single version/configuration record at [`docs/build-and-runtime-versions.md`](docs/build-and-runtime-versions.md).
 
 The currently recorded and observed baseline includes:
 
@@ -186,8 +186,9 @@ The currently recorded and observed baseline includes:
 - httpx `0.28.1`
 - uvicorn `0.52.4`
 - Databricks CLI `1.15.0`
+- uv `0.12.7` — dependency lock resolver
 
-Direct dependencies are version-pinned. There is currently **no `uv.lock`**, so the repository is not yet fully transitive-lock reproducible.
+The repository includes a committed `uv.lock` containing the validated 240-package transitive dependency resolution. `pyproject.toml` remains the source of truth for direct dependency declarations.
 
 ## Phase 11 — Monitoring + Observability
 
