@@ -8,7 +8,6 @@ from src.serving.databricks_client import DatabricksServingClient, DatabricksSer
 from src.serving.mlflow_model import ReadmissionServingModel
 from src.serving.schemas import PredictionRequest
 
-
 VALID_FEATURES = {
     "age": 67,
     "sex": "Female",

@@ -4,7 +4,6 @@ from fastapi.testclient import TestClient
 
 from api import main as api_main
 
-
 SAMPLE_FEATURES = {
     "age": 67,
     "sex": "Female",

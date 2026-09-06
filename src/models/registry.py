@@ -19,7 +19,6 @@ from mlflow.models import infer_signature
 from src.config import settings
 from src.serving.mlflow_model import ReadmissionServingModel
 
-
 # These are only fallbacks. Production artifacts build their requirements from
 # the actual training environment below so sklearn/cloudpickle serialization is
 # reproduced exactly by Databricks Model Serving.
