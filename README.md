@@ -41,10 +41,10 @@ GitHub is the source of truth for application code and deployment configuration.
 | Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
 | Phase 11 | Monitoring + Observability | **COMPLETE / FROZEN — VERIFIED MONITORING SCOPE** |
-| Phase 12 | Drift + Retraining | **PENDING** |
+| Phase 12 | Drift + Retraining | **COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-**Freeze rule:** Phases 1–11 are closed for their validated scopes. The protected v1 serving baseline remains frozen while later lifecycle work proceeds.
+**Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while later lifecycle work proceeds.
 
 ## Verification and no-guessing policy
 
@@ -96,7 +96,7 @@ Traffic: 100%
 State: READY
 ```
 
-The protected v1 endpoint has not been changed as part of candidate validation or Phase 11.
+The protected v1 endpoint has not been changed as part of candidate validation, Phase 11, or Phase 12.
 
 ## Phase 9 — Existing-System Integration
 
@@ -129,76 +129,25 @@ Verified production bundle deployment has already been established separately fr
 
 Detailed evidence is maintained in [`docs/monitoring.md`](docs/monitoring.md).
 
-### Live Databricks evidence
+The verified candidate and protected endpoints retain usage tracking and the repository monitoring contracts preserve observed values and unknowns without fabricating telemetry.
 
-Protected production endpoint:
-
-```text
-cidev-netcare-readmission
-model version: 1
-state: READY
-config update: NOT_UPDATING
-deployment: DEPLOYMENT_READY
-usage tracking: enabled
-```
-
-Candidate endpoint:
-
-```text
-cidev-netcare-readmission-candidate
-model version: 8
-served entity ID: 362c5dbb1cf448789afbb4ee6a687712
-state: READY
-config update: NOT_UPDATING
-deployment: DEPLOYMENT_READY
-100% traffic within candidate endpoint
-usage tracking: enabled
-```
-
-Verified governed system-table surfaces:
-
-```text
-system.serving.endpoint_usage
-system.serving.served_entities
-```
-
-The verified `endpoint_usage` schema contains request metadata only:
-
-```text
-request_time
-status_code
-requester
-databricks_request_id
-client_request_id
-served_entity_id
-```
-
-A direct query of `system.serving.endpoint_usage` for the exact v8 served entity succeeded and returned **zero rows**. This means the table is queryable but v8 request-record population was not observed. No prediction/probability or labelled-outcome source is inferred from that table.
-
-The repository monitoring implementation provides tested contracts for:
-
-- endpoint health;
-- observed serving metrics;
-- governed serving-system queries;
-- served-entity identity;
-- input schema/null checks;
-- feature/prediction drift calculations;
-- labelled-outcome performance metrics;
-- performance degradation comparison.
-
-Missing telemetry remains unknown rather than being fabricated as zero. No live alert/dashboard deployment is claimed without evidence.
-
-### Phase 11 exit boundary
-
-Phase 11 is frozen for the verified monitoring scope: live serving telemetry and governed system-table access are evidenced, the monitoring contracts are implemented/tested, and the empty v8 usage result is explicitly recorded. Live request-level prediction records, labelled outcomes, and production alert/dashboard deployment remain data/configuration-dependent extensions for later evidence.
+The verified `system.serving.endpoint_usage` query for served entity `362c5dbb1cf448789afbb4ee6a687712` returned zero rows; no prediction/probability or labelled-outcome source is inferred from that table.
 
 ## Phase 12 — Drift + Retraining
 
-**Next active phase.** Phase 12 will connect validated drift/performance signals to the existing training, MLflow, quality-gate, registration, and promotion components. The actual Databricks retraining trigger/job configuration will be verified before orchestration changes are made.
+**Status: COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE.**
+
+Phase 12 adds deterministic synthetic reference/current populations, exercises the existing drift detector, and evaluates an explicit auditable retraining policy. The end-to-end synthetic drift → retraining decision path is covered by CI tests.
+
+The verified implementation uses the existing project dependency versions and CI environment; Phase 12 did not change the dependency stack or serving versions.
+
+The phase does **not** claim a live production drift dataset or an automatic production retraining trigger. The synthetic fixture is the explicit validation artifact for this project phase. A future production retraining workflow must independently verify its data source, trigger, permissions, job configuration, training result, quality gate, registry action, and promotion path.
+
+Detailed Phase 12 evidence is maintained in [`docs/retraining.md`](docs/retraining.md).
 
 ## Phase 13 — Canary + Production Releases
 
-Pending Phase 12. Production release work will use candidate validation, controlled traffic changes, post-release monitoring, and rollback to a previously trusted version. The protected v1 baseline remains the rollback reference until a later release is explicitly validated and promoted.
+Pending. Production release work will use candidate validation, controlled traffic changes, post-release monitoring, and rollback to a previously trusted version. The protected v1 baseline remains the rollback reference until a later release is explicitly validated and promoted.
 
 ## Technology stack
 
@@ -267,4 +216,4 @@ Quality gates require ROC-AUC ≥ 0.70, Recall ≥ 0.60, data validation, model 
 - Prefer the minimum architecture that satisfies the requirements.
 - Minimize patient data in logs and telemetry.
 
-Detailed engineering investigations belong in `docs/`; [`docs/production-roadmap.md`](docs/production-roadmap.md) is the lifecycle source of truth, [`docs/monitoring.md`](docs/monitoring.md) is the Phase 11 source of truth, and [`docs/verification-record.md`](docs/verification-record.md) is the operational change-control and evidence record.
+Detailed engineering investigations belong in `docs/`; [`docs/production-roadmap.md`](docs/production-roadmap.md) is the lifecycle source of truth, [`docs/monitoring.md`](docs/monitoring.md) is the Phase 11 source of truth, [`docs/retraining.md`](docs/retraining.md) is the Phase 12 source of truth, and [`docs/verification-record.md`](docs/verification-record.md) is the operational change-control and evidence record.
