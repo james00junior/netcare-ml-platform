@@ -15,13 +15,13 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 | Phase 6 | Model Registry + Validation Gates | **COMPLETE / FROZEN** |
 | Phase 7 | GitHub CI/CD + Databricks Bundles | **COMPLETE / FROZEN** |
 | Phase 8 | Databricks Model Serving | **COMPLETE / FROZEN — Serving v2 / Model v8 VALIDATED** |
-| Phase 9 | Existing-System Integration via Databricks Serving | **REDESIGNED — IN PROGRESS** |
-| Phase 10 | Security + Secrets + IAM | **PENDING** |
+| Phase 9 | Existing-System Integration via Databricks Serving | **COMPLETE / FROZEN** |
+| Phase 10 | Security + Secrets + IAM | **IN PROGRESS** |
 | Phase 11 | Monitoring + Observability | **PENDING** |
 | Phase 12 | Drift + Retraining | **PENDING** |
 | Phase 13 | Canary + Production Releases | **PENDING** |
 
-**Freeze rule:** Phases 1–8 are closed. Their validated implementation is not modified while Phase 9–13 work proceeds. The protected v1 production baseline is never touched.
+**Freeze rule:** Phases 1–9 are closed. Their validated implementation is not modified while Phase 10–13 work proceeds. The protected v1 production baseline is never touched.
 
 ## Architecture Decision — Simplified Databricks-Centric Serving
 
@@ -107,7 +107,7 @@ The endpoint configuration independently establishes that the served model is Re
 
 ## Phase 9 — Existing-System Integration
 
-Phase 9 is redesigned around the already validated Databricks serving boundary rather than adding a separate Cloud Run/API Gateway layer.
+Phase 9 is complete and frozen around the already validated Databricks serving boundary rather than adding a separate Cloud Run/API Gateway layer.
 
 ```text
 Existing Hospital System
@@ -127,37 +127,43 @@ The external integration contract is based on the Databricks serving invocation 
 
 The existing FastAPI/Databricks client implementation remains useful as a local integration adapter and test harness, but it is **not required as production infrastructure** for the simplified architecture.
 
-Phase 9 implementation will document and validate:
+The completed Phase 9 boundary includes request/response validation, authentication handling, retry/error handling, serving version awareness, and rollback-compatible model integration.
 
-- request/response contract
-- authentication
-- request validation
-- error handling
-- client-system integration
-- serving endpoint versioning
-- rollback-compatible model promotion
+### Phase 9 success criterion — achieved
 
-### Phase 9 success criterion
-
-A representative client system can authenticate to Databricks Model Serving and successfully obtain a prediction from the validated Serving v2 / Model v8 endpoint without requiring Cloud Run or API Gateway.
+A representative client integration can authenticate to Databricks Model Serving and obtain a prediction from the validated Serving v2 / Model v8 endpoint without requiring Cloud Run or API Gateway.
 
 ## Phase 10 — Security and Secrets
 
-Security will be implemented around the actual production boundary.
+Phase 10 is now implementing security around the actual production boundary.
 
 ```text
-Client Identity / Service Principal
-              │
-              ▼
-     Databricks Authentication
-              │
-              ▼
-        Model Serving
+GitHub Actions
+      │
+      │ OIDC / Workload Identity Federation
+      ▼
+Databricks Authentication
+      │
+      ▼
+Databricks Bundles
+      │
+      ▼
+Model Serving
 ```
 
-Never store API keys, Databricks tokens, GCP credentials, or database passwords in committed `.env` files, Python source, or notebooks.
+Production application/runtime credentials remain outside source control. GitHub CI/CD uses Databricks GitHub OIDC rather than a long-lived Databricks token.
 
-Use least-privilege identity, service principals, Databricks secrets, and appropriate GCP controls for the GCS data layer.
+Current Phase 10 controls include:
+
+- `SecretStr` for runtime API keys and Databricks serving tokens
+- GitHub OIDC authentication for Databricks deployment workflows
+- `id-token: write` and `contents: read` workflow permissions
+- environment-scoped Databricks host and client configuration
+- standardised `DATABRICKS_HOST` bundle configuration across dev, staging, and prod
+- pinned CI formatter/linter versions based on observed CI
+- a committed record of verified build/runtime versions
+
+A full dependency lock has not yet been committed; transitive dependency reproducibility therefore remains an explicit follow-up item.
 
 ## Phase 11 — Monitoring and Observability
 
@@ -248,8 +254,9 @@ Data → Validation → Training → MLflow
      → Quality Gate → Unity Catalog Registry
      → Databricks Model Serving
      → Existing System Integration
+     → Security / IAM
      → Monitoring → Drift Detection
      → Retraining → Validation → Controlled Release
 ```
 
-Phases 1–8 remain frozen. Phase 9 is now the Databricks-native existing-system integration boundary. Cloud Run and API Gateway are deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
+Phases 1–9 remain frozen. Phase 10 is the active security and identity hardening phase. Cloud Run and API Gateway remain deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
