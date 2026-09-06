@@ -3,9 +3,12 @@
 from src.monitoring.serving import (
     ENDPOINT_USAGE_COLUMNS,
     build_serving_observation,
+    endpoint_usage_query,
+    normalize_endpoint_health,
     normalize_endpoint_metrics,
     normalize_usage_rows,
     resolve_served_entity,
+    served_entities_query,
 )
 
 
@@ -41,6 +44,28 @@ def test_zero_usage_rows_are_explicitly_unavailable() -> None:
     assert observation["usage_record_count"] == 0
     assert observation["usage_records_available"] is False
     assert observation["usage_records"] == []
+
+
+def test_populated_usage_rows_are_available() -> None:
+    observation = build_serving_observation(
+        endpoint_name="cidev-netcare-readmission-candidate",
+        served_entity_id="entity-1",
+        metrics={},
+        served_entity_rows=[],
+        usage_rows=[
+            {
+                "request_time": "2026-09-06T16:00:00Z",
+                "status_code": 200,
+                "requester": "test",
+                "databricks_request_id": "req-1",
+                "client_request_id": "client-1",
+                "served_entity_id": "entity-1",
+            }
+        ],
+    )
+
+    assert observation["usage_record_count"] == 1
+    assert observation["usage_records_available"] is True
 
 
 def test_served_entity_is_resolved_by_exact_id() -> None:
@@ -80,6 +105,39 @@ def test_missing_serving_metrics_are_not_silently_zero() -> None:
     assert "request_count_total" not in metrics
 
 
+def test_endpoint_health_is_unknown_when_state_is_not_observed() -> None:
+    health = normalize_endpoint_health(
+        endpoint_state=None,
+        config_update_state=None,
+        deployment_state=None,
+    )
+
+    assert health["healthy"] is None
+    assert health["ready"] is None
+
+
+def test_endpoint_health_uses_explicit_verified_states() -> None:
+    health = normalize_endpoint_health(
+        endpoint_state="READY",
+        config_update_state="NOT_UPDATING",
+        deployment_state="DEPLOYMENT_READY",
+    )
+
+    assert health["healthy"] is True
+    assert health["ready"] is True
+
+
+def test_verified_sql_contracts_do_not_add_fields() -> None:
+    usage_sql = endpoint_usage_query("entity-1")
+    entity_sql = served_entities_query("entity-1")
+
+    assert "system.serving.endpoint_usage" in usage_sql
+    assert "system.serving.served_entities" in entity_sql
+    assert "served_entity_id" in usage_sql
+    assert "entity_version" in entity_sql
+    assert "unverified_column" not in usage_sql
+
+
 def test_serving_observation_preserves_endpoint_and_model_identity() -> None:
     observation = build_serving_observation(
         endpoint_name="cidev-netcare-readmission-candidate",
@@ -104,8 +162,12 @@ def test_serving_observation_preserves_endpoint_and_model_identity() -> None:
             }
         ],
         usage_rows=[],
+        endpoint_state="READY",
+        config_update_state="NOT_UPDATING",
+        deployment_state="DEPLOYMENT_READY",
     )
 
     assert observation["served_entity_found"] is True
     assert observation["served_entity"]["entity_version"] == 8
     assert observation["metrics"]["provisioned_concurrent_requests_total"] == 4
+    assert observation["health"]["healthy"] is True
