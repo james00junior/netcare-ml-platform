@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,13 +34,13 @@ class Settings(BaseSettings):
 
     # Databricks Model Serving
     databricks_serving_endpoint: str | None = None
-    databricks_serving_token: str | None = None
+    databricks_serving_token: SecretStr | None = None
     databricks_serving_timeout: float = 30.0
 
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
-    api_key: str | None = None
+    api_key: SecretStr | None = None
 
     # Monitoring thresholds
     drift_threshold: float = 0.15
