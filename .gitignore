@@ -54,3 +54,7 @@ htmlcov/
 
 # MLflow local tracking
 mlflow.db
+
+# Google Cloud CLI
+google-cloud-sdk/
+google-cloud-cli-darwin-arm.tar.gz
