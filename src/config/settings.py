@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     api_key: SecretStr | None = None
+
+    @field_validator("databricks_serving_token", "api_key", mode="before")
+    @classmethod
+    def empty_secret_to_none(cls, value):
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     # Monitoring thresholds
     drift_threshold: float = 0.15
