@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-
 NUMERICAL_COLUMNS = ("age", "creatinine", "hemoglobin", "sodium", "potassium")
 CATEGORICAL_COLUMNS = ("sex", "admission_type", "admission_source")
 
