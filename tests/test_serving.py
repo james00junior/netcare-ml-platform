@@ -132,7 +132,11 @@ def test_databricks_client_sends_request_id_without_payload_logging(monkeypatch)
             return None
 
         def json(self):
-            return {"predictions": [{"predicted_label": 0, "probability": 0.2, "risk_tier": "low"}]}
+            return {
+                "predictions": [
+                    {"predicted_label": 0, "probability": 0.2, "risk_tier": "low"}
+                ]
+            }
 
     def fake_post(url, **kwargs):
         captured["url"] = url
@@ -187,7 +191,10 @@ def test_databricks_client_retries_transient_500(monkeypatch):
 
 def test_databricks_client_does_not_retry_client_error(monkeypatch):
     client = DatabricksServingClient(
-        "https://test.invalid/invocations", "token", max_retries=2, retry_backoff=0
+        "https://test.invalid/invocations",
+        "token",
+        max_retries=2,
+        retry_backoff=0,
     )
     calls = 0
 
@@ -206,7 +213,10 @@ def test_databricks_client_does_not_retry_client_error(monkeypatch):
 
 def test_databricks_client_retries_timeout(monkeypatch):
     client = DatabricksServingClient(
-        "https://test.invalid/invocations", "token", max_retries=2, retry_backoff=0
+        "https://test.invalid/invocations",
+        "token",
+        max_retries=2,
+        retry_backoff=0,
     )
     calls = 0
 
@@ -269,7 +279,11 @@ def test_databricks_client_rejects_invalid_prediction_values(monkeypatch):
         def json(self):
             return {
                 "predictions": [
-                    {"predicted_label": "invalid", "probability": 0.2, "risk_tier": "low"}
+                    {
+                        "predicted_label": "invalid",
+                        "probability": 0.2,
+                        "risk_tier": "low",
+                    }
                 ]
             }
 
