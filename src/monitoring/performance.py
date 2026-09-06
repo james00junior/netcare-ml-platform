@@ -61,7 +61,7 @@ def check_performance_degradation(
         "primary_metric": primary_metric,
         "baseline": baseline,
         "current": current,
-        "absolute_drop": float(drop),
+        "absolute_drop": round(float(drop), 10),
         "threshold": threshold,
         "message": (
             f"{primary_metric} dropped by {drop:.4f} (threshold={threshold})"
