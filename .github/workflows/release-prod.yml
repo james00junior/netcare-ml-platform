@@ -1,0 +1,100 @@
+name: Release Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      serving_model_version:
+        description: Registered model version to deploy to the production serving endpoint
+        required: true
+        type: choice
+        options:
+          - "8"
+          - "1"
+        default: "8"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: prod
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+      SERVING_MODEL_VERSION: ${{ inputs.serving_model_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.16"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,api]"
+
+      - name: Record Python and package versions
+        run: |
+          python --version
+          pip --version
+          pytest --version
+          black --version
+          ruff --version
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+        with:
+          version: "1.15.0"
+
+      - name: Record Databricks CLI version
+        run: databricks version --output json
+
+      - name: Validate release bundle
+        working-directory: databricks
+        run: databricks bundle validate -t prod --var="serving_model_version=${SERVING_MODEL_VERSION}"
+
+      - name: Preview production release
+        working-directory: databricks
+        run: databricks bundle plan -t prod --var="serving_model_version=${SERVING_MODEL_VERSION}"
+
+      - name: Deploy production release
+        working-directory: databricks
+        run: databricks bundle deploy -t prod --var="serving_model_version=${SERVING_MODEL_VERSION}"
+
+      - name: Verify deployed serving model
+        working-directory: databricks
+        run: |
+          databricks serving-endpoints get dev-netcare-readmission -o json > endpoint.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          payload = json.loads(Path("endpoint.json").read_text())
+          expected = os.environ["SERVING_MODEL_VERSION"]
+          endpoint_state = payload.get("state", {})
+          config = payload.get("config", {})
+          served_entities = config.get("served_entities", [])
+
+          if endpoint_state.get("ready") != "READY":
+              raise SystemExit(f"Production endpoint is not READY: {endpoint_state}")
+          if endpoint_state.get("config_update") != "NOT_UPDATING":
+              raise SystemExit(f"Production endpoint is still updating: {endpoint_state}")
+          if len(served_entities) != 1:
+              raise SystemExit(f"Expected exactly one served entity, found {len(served_entities)}")
+
+          actual = str(served_entities[0].get("entity_version"))
+          if actual != expected:
+              raise SystemExit(
+                  f"Production serving model mismatch: expected version {expected}, got {actual}"
+              )
+
+          print(f"Production endpoint verified: READY, NOT_UPDATING, model version {actual}")

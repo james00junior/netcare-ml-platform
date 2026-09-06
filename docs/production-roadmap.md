@@ -19,7 +19,7 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
 | Phase 11 | Monitoring + Observability | **COMPLETE / FROZEN — VERIFIED MONITORING SCOPE** |
 | Phase 12 | Drift + Retraining | **COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE** |
-| Phase 13 | Canary + Production Releases | **NEXT / FINAL LIFECYCLE PHASE** |
+| Phase 13 | Canary + Production Releases | **IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION** |
 
 **Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while Phase 13 is evaluated.
 
@@ -219,24 +219,43 @@ No live production drift dataset or automatic production retraining trigger is c
 
 ## Phase 13 — Canary and Production Release
 
-**Status: NEXT / FINAL LIFECYCLE PHASE.**
+**Status: IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION.**
 
-Phase 13 is the final project phase. It will validate the controlled model-release path using the already established candidate/protected serving architecture.
+Phase 13 uses the already established candidate/protected serving architecture and deliberately keeps the release mechanism simple: an explicit GitHub Actions production release workflow accepts only the currently verified candidate/protected model versions, validates the production bundle, previews the deployment plan, deploys the selected registered model version, and verifies the resulting production endpoint state.
 
-### Phase 13 scope
+The release workflow is manual (`workflow_dispatch`) and uses the same verified production deployment authentication and runtime versions as the existing production workflow:
 
-1. Inspect the actual current candidate and protected serving configuration before any change.
-2. Establish the exact release/rollback contract from the verified Databricks serving configuration.
-3. Validate candidate readiness without changing the protected v1 baseline prematurely.
-4. If a controlled traffic change is supported and required by the actual serving configuration, perform only the explicitly validated change.
-5. Verify post-release serving health and exact model/traffic state.
-6. Verify rollback behavior or the strongest directly testable rollback contract without risking the protected baseline.
-7. Record the exact GitHub commit, CI/deployment result, and live Databricks state.
-8. Freeze the final project checkpoint.
+```text
+GitHub Actions
+      │
+      │ OIDC
+      ▼
+Bundle validate
+      │
+      ▼
+Bundle plan
+      │
+      ▼
+Bundle deploy
+      │
+      ▼
+Serving endpoint verification
+```
 
-### Phase 13 no-guessing boundary
+The currently implemented release choices are:
 
-No production promotion, traffic split, or rollback operation will be claimed until the relevant Databricks serving configuration and supported operation are inspected. The protected endpoint `cidev-netcare-readmission` / model v1 remains unchanged unless an evidence-backed Phase 13 release operation explicitly requires a controlled change.
+```text
+8 → controlled promotion of the verified candidate model
+1 → explicit rollback to the protected baseline model
+```
+
+The workflow does not invent a traffic percentage or modify the isolated candidate endpoint. It verifies that the production endpoint is `READY`, `NOT_UPDATING`, has exactly one served entity, and serves the requested registered model version after deployment.
+
+### Phase 13 evidence boundary
+
+The workflow implementation is committed, but Phase 13 is **not yet called complete**. CI, production deployment, and live production verification must succeed for the exact Phase 13 commit before the phase is frozen.
+
+No production promotion or rollback has been executed by this implementation change. The protected `cidev-netcare-readmission` / v1 live baseline remains unchanged.
 
 ## Final lifecycle target
 
@@ -249,7 +268,7 @@ Data → Validation → Training → MLflow
      → Monitoring
      → Drift Detection
      → Retraining Decision → Validation
-     → Canary / Controlled Release
+     → Controlled Release
      → Production Verification
      → Rollback Contract
 ```

@@ -29,7 +29,7 @@ Candidate registered model version: 8
 MLflow run: bf12e7f602084e78acdab4797c40c2b2
 ```
 
-Phases 1–11 are frozen for their validated scopes. Candidate development must not modify the protected v1 endpoint or silently change the serving/version configuration.
+Phases 1–12 are frozen for their validated scopes. Candidate development must not modify the protected v1 endpoint or silently change the serving/version configuration.
 
 ## Phase 11 completion checkpoint — 2026-09-06
 
@@ -163,12 +163,30 @@ After each verified milestone, update:
 
 Documentation must distinguish **implemented**, **queryable**, **observed**, **validated**, and **complete**. These terms are not interchangeable.
 
-## Next lifecycle phase
+## Phase 13 implementation checkpoint — 2026-09-06
 
-Phase 11 is frozen for the verified monitoring scope. The next active work is Phase 12:
+Phase 13 implementation is present on branch `phase-13-release`.
 
 ```text
-Phase 12 — Drift + Retraining
+Release workflow: .github/workflows/release-prod.yml
+Implementation commit at workflow creation: 0f523ab8b007e104233531209a12b8598444c3fc
 ```
 
-Phase 12 must first inspect the actual Databricks training/retraining job and verified data source before adding orchestration. It must consume validated monitoring signals rather than inventing a new monitoring path.
+The workflow is manual and exposes only the currently verified model-version choices:
+
+```text
+8 → controlled promotion of the verified candidate
+1 → explicit rollback to the protected baseline
+```
+
+It uses the existing production OIDC environment, Python `3.11.16`, Databricks CLI `1.15.0`, bundle validation, bundle plan, bundle deployment, and a post-deployment serving-endpoint verification step. The verification requires `READY`, `NOT_UPDATING`, exactly one served entity, and the requested model version.
+
+No production promotion or rollback was executed by this repository change. No live Databricks state was changed by the GitHub file updates. CI and deployment results for the final Phase 13 commit are intentionally not recorded until they are observed for that exact commit.
+
+**Phase 13 status: IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION.**
+
+## No-guessing boundary for Phase 13
+
+The current live evidence remains the frozen baseline recorded above. The Phase 13 workflow does not claim a canary traffic percentage because the verified candidate and protected resources are separate endpoints. It provides controlled promotion/rollback through the production bundle variable while preserving the candidate endpoint configuration.
+
+The final phase may only be marked complete after the exact Phase 13 commit passes the repository quality/deployment gates and the resulting production endpoint state is independently inspected.
