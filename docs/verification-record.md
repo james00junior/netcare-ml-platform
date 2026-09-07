@@ -29,7 +29,34 @@ Candidate registered model version: 8
 MLflow run: bf12e7f602084e78acdab4797c40c2b2
 ```
 
-Phases 1–12 are frozen for their validated scopes. Candidate development must not modify the protected v1 endpoint or silently change the serving/version configuration.
+Phases 1–13 are now frozen for their validated scopes. The protected v1 endpoint remains a rollback baseline; the separately verified `dev-netcare-readmission` endpoint is the production release target validated for model v8.
+
+## Phase 13 completion checkpoint — 2026-09-07
+
+Live Databricks evidence supplied for the production release verification:
+
+```text
+Production endpoint: dev-netcare-readmission
+Production registered model: netcareaidatabricks.default.readmission_model
+Production served model: readmission_model-8
+Production registered model version: 8
+Configuration version: 2
+
+Endpoint state: READY
+Configuration update: NOT_UPDATING
+Served entities: 1
+Traffic: 100% → readmission_model-8
+Deployment state: DEPLOYMENT_READY
+Workload: Small / CPU
+Scale to zero: enabled
+Usage tracking: enabled
+```
+
+The release workflow was executed manually with model version `8`, and the user reported the GitHub Actions production release as passed. The live Databricks response independently confirms the resulting production state. The available GitHub connector did not expose the newly executed workflow-run listing, so no unobserved workflow-run ID or step-level result is recorded here.
+
+The workflow's explicit rollback choice remains model version `1`. No rollback was executed. No canary traffic percentage is claimed because the verified candidate and protected resources are separate endpoints.
+
+**Phase 13 status: COMPLETE / FROZEN — MODEL v8 PRODUCTION RELEASE VALIDATED.**
 
 ## Phase 11 completion checkpoint — 2026-09-06
 
@@ -165,11 +192,11 @@ Documentation must distinguish **implemented**, **queryable**, **observed**, **v
 
 ## Phase 13 implementation checkpoint — 2026-09-06
 
-Phase 13 implementation is present on branch `phase-13-release`.
+Phase 13 implementation was committed through the `phase-13-release` branch and merged to `main`.
 
 ```text
 Release workflow: .github/workflows/release-prod.yml
-Implementation commit at workflow creation: 0f523ab8b007e104233531209a12b8598444c3fc
+Final merge commit: fcca6f929cf05ebfc7c19fa720cbae08b3f8d4bf
 ```
 
 The workflow is manual and exposes only the currently verified model-version choices:
@@ -181,12 +208,10 @@ The workflow is manual and exposes only the currently verified model-version cho
 
 It uses the existing production OIDC environment, Python `3.11.16`, Databricks CLI `1.15.0`, bundle validation, bundle plan, bundle deployment, and a post-deployment serving-endpoint verification step. The verification requires `READY`, `NOT_UPDATING`, exactly one served entity, and the requested model version.
 
-No production promotion or rollback was executed by this repository change. No live Databricks state was changed by the GitHub file updates. CI and deployment results for the final Phase 13 commit are intentionally not recorded until they are observed for that exact commit.
-
-**Phase 13 status: IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION.**
+The implementation itself did not change live Databricks state. The subsequent production release selected model version `8`; the resulting live state is recorded in the completion checkpoint above.
 
 ## No-guessing boundary for Phase 13
 
-The current live evidence remains the frozen baseline recorded above. The Phase 13 workflow does not claim a canary traffic percentage because the verified candidate and protected resources are separate endpoints. It provides controlled promotion/rollback through the production bundle variable while preserving the candidate endpoint configuration.
+The verified candidate and protected resources are separate endpoints. Therefore this phase does not claim a canary traffic percentage. The implemented release path provides controlled promotion to the production release target and an explicit rollback choice to the protected v1 baseline.
 
-The final phase may only be marked complete after the exact Phase 13 commit passes the repository quality/deployment gates and the resulting production endpoint state is independently inspected.
+Future production releases require a new evidence-backed change under the repository change-control procedure.
