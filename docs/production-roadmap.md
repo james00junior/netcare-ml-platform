@@ -19,9 +19,9 @@ This document is the source-of-truth roadmap for the production lifecycle. Compl
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
 | Phase 11 | Monitoring + Observability | **COMPLETE / FROZEN — VERIFIED MONITORING SCOPE** |
 | Phase 12 | Drift + Retraining | **COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE** |
-| Phase 13 | Canary + Production Releases | **IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION** |
+| Phase 13 | Canary + Production Releases | **COMPLETE / FROZEN — MODEL v8 PRODUCTION RELEASE VALIDATED** |
 
-**Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while Phase 13 is evaluated.
+**Freeze rule:** Phases 1–13 are closed for their validated scopes. The protected v1 endpoint and the verified v8 production release are not changed without a new, independently validated change.
 
 ## Evidence rule
 
@@ -48,6 +48,40 @@ Freeze checkpoint
 ```
 
 Do not use an earlier or different commit's CI/deployment result as evidence for the current commit. Do not infer an unobserved Databricks configuration, table, permission, model version, or runtime value.
+
+## Latest Phase 13 production release evidence — 2026-09-07
+
+```text
+Phase: Canary + Production Releases
+Status: COMPLETE / FROZEN — MODEL v8 PRODUCTION RELEASE VALIDATED
+
+Production endpoint: dev-netcare-readmission
+Production registered model: netcareaidatabricks.default.readmission_model
+Production model version: 8
+Served model: readmission_model-8
+Configuration version: 2
+Endpoint state: READY
+Configuration update: NOT_UPDATING
+Served entities: 1
+Traffic: 100% → readmission_model-8
+Deployment state: DEPLOYMENT_READY
+Workload: Small / CPU
+Scale to zero: enabled
+Usage tracking: enabled
+
+Release mechanism:
+GitHub Actions manual workflow: Release Production
+Selected release version: 8
+
+Repository release commit:
+fcca6f929cf05ebfc7c19fa720cbae08b3f8d4bf
+```
+
+The live Databricks response independently verifies that production is serving registered model version 8 at 100% traffic and is stable (`READY` / `NOT_UPDATING`). The endpoint contains exactly one served entity, `readmission_model-8`, in `DEPLOYMENT_READY` state.
+
+The workflow's explicit rollback choice remains model version 1. No rollback was executed in this release. No canary traffic percentage is claimed because the verified candidate and protected resources are separate endpoints; the release path is controlled promotion/rollback rather than an invented traffic split.
+
+**Phase 13 exit criterion: achieved.**
 
 ## Latest Phase 12 evidence checkpoint — 2026-09-06
 
@@ -106,156 +140,22 @@ GitHub remains the source of truth for application code and deployment configura
 
 **Decision:** do not introduce Cloud Run or GCP API Gateway unless a concrete future requirement justifies a separate integration boundary, custom API orchestration, protocol transformation, or API-management capability.
 
-## Phase 8 — Production Model Serving
-
-The validated serving implementation uses Databricks Model Serving.
-
-### Validated milestone: Serving v2 → Registry Model v8
-
-Registered model:
-
-```text
-netcareaidatabricks.default.readmission_model
-```
-
-Model version:
-
-```text
-8
-```
-
-MLflow run:
-
-```text
-bf12e7f602084e78acdab4797c40c2b2
-```
-
-Isolated candidate endpoint:
-
-```text
-cidev-netcare-readmission-candidate
-```
-
-Verified serving state:
-
-```text
-endpoint state:       READY
-configuration:        NOT_UPDATING
-served model:         readmission_model-8
-model version:        8
-traffic:              100%
-deployment:           DEPLOYMENT_READY
-workload:             Small / CPU
-scale to zero:        enabled
-```
-
-Direct inference was successfully validated using the exact 28-field model contract.
-
-**Phase 8 is frozen.**
-
-## Phase 9 — Existing-System Integration
-
-Phase 9 is complete and frozen around the already validated Databricks serving boundary rather than adding a separate Cloud Run/API Gateway layer.
-
-```text
-Existing Hospital System
-          │
-          │ HTTPS / JSON
-          ▼
-Databricks Model Serving
-          │
-          ▼
-     Serving v2
-          │
-          ▼
-       Model v8
-```
-
-The external integration contract is based on the Databricks serving invocation API. The model remains independently versioned and governed in Unity Catalog.
-
-The existing FastAPI/Databricks client implementation remains useful as a local integration adapter and test harness, but it is **not required as production infrastructure** for the simplified architecture.
-
-## Phase 10 — Security and Secrets
-
-Phase 10 deployment authentication and production bundle deployment have been validated.
-
-```text
-GitHub Actions
-      │
-      │ OIDC / Workload Identity Federation
-      ▼
-Databricks Authentication
-      │
-      ▼
-Databricks Bundles
-      │
-      ▼
-Production Databricks Resources
-```
-
-Production application/runtime credentials remain outside source control. GitHub CI/CD uses Databricks GitHub OIDC rather than a long-lived Databricks token.
-
-## Phase 11 — Monitoring and Observability
-
-**Status: COMPLETE / FROZEN FOR THE VERIFIED MONITORING SCOPE.**
-
-Phase 11 established and tested repository monitoring contracts and verified the live Databricks serving-monitoring surfaces.
-
-The verified `system.serving.endpoint_usage` query for served entity `362c5dbb1cf448789afbb4ee6a687712` returned zero rows; no prediction/probability or labelled-outcome source is inferred from that table.
-
-**Phase 11 exit criterion: achieved for the verified monitoring scope.**
-
-## Phase 12 — Drift Detection and Retraining
-
-**Status: COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE.**
-
-Phase 12 provides a deterministic CI-tested drift-to-retraining decision path. It uses the existing drift detector and an explicit auditable retraining policy.
-
-The phase verifies both no-drift and intentional-drift scenarios and passes the resulting drift report into the retraining policy. The exact implementation commit and CI/deployment evidence are recorded above.
-
-No live production drift dataset or automatic production retraining trigger is claimed. Any future production retraining orchestration requires independently verified source, trigger, permissions, job configuration, training result, quality gate, registry action, and promotion path.
-
-**Phase 12 exit criterion: achieved for the synthetic validation scope.**
-
 ## Phase 13 — Canary and Production Release
 
-**Status: IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION.**
+Phase 13 is complete and frozen for the validated controlled-release scope.
 
-Phase 13 uses the already established candidate/protected serving architecture and deliberately keeps the release mechanism simple: an explicit GitHub Actions production release workflow accepts only the currently verified candidate/protected model versions, validates the production bundle, previews the deployment plan, deploys the selected registered model version, and verifies the resulting production endpoint state.
-
-The release workflow is manual (`workflow_dispatch`) and uses the same verified production deployment authentication and runtime versions as the existing production workflow:
-
-```text
-GitHub Actions
-      │
-      │ OIDC
-      ▼
-Bundle validate
-      │
-      ▼
-Bundle plan
-      │
-      ▼
-Bundle deploy
-      │
-      ▼
-Serving endpoint verification
-```
-
-The currently implemented release choices are:
+The implemented manual GitHub Actions release workflow accepts only the verified release choices:
 
 ```text
 8 → controlled promotion of the verified candidate model
 1 → explicit rollback to the protected baseline model
 ```
 
-The workflow does not invent a traffic percentage or modify the isolated candidate endpoint. It verifies that the production endpoint is `READY`, `NOT_UPDATING`, has exactly one served entity, and serves the requested registered model version after deployment.
+The workflow uses the existing production OIDC environment, Python `3.11.16`, Databricks CLI `1.15.0`, bundle validation, deployment-plan preview, bundle deployment, and post-deployment serving verification.
 
-### Phase 13 evidence boundary
+The verified production release selected model version 8 and produced the live state recorded above. The release did not invent a traffic split and did not modify the isolated candidate endpoint.
 
-The workflow implementation is committed, but Phase 13 is **not yet called complete**. CI, production deployment, and live production verification must succeed for the exact Phase 13 commit before the phase is frozen.
-
-No production promotion or rollback has been executed by this implementation change. The protected `cidev-netcare-readmission` / v1 live baseline remains unchanged.
+**Phase 13 is frozen.** Future production releases require a new evidence-backed change under the repository change-control procedure.
 
 ## Final lifecycle target
 
@@ -273,4 +173,4 @@ Data → Validation → Training → MLflow
      → Rollback Contract
 ```
 
-Phase 13 is the final remaining lifecycle phase. Cloud Run and API Gateway remain deliberately excluded from the baseline architecture unless a concrete requirement is introduced.
+**Production lifecycle baseline complete.** Future work is treated as a new, independently scoped change rather than an extension of the completed Phase 13 implementation.
