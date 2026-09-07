@@ -4,7 +4,7 @@ Production-oriented ML platform for **30-day hospital readmission prediction**, 
 
 ## Project scope
 
-This project implements and validates the production ML lifecycle from governed data ingestion through model training, evaluation, registry, serving, integration, security, monitoring, drift detection, retraining decisioning, and controlled release preparation.
+This project implements and validates the production ML lifecycle from governed data ingestion through model training, evaluation, registry, serving, integration, security, monitoring, drift detection, retraining decisioning, and controlled release.
 
 The verified baseline deliberately avoids infrastructure that is not required by the workload. Databricks Model Serving is the production serving boundary; a separate Cloud Run/API Gateway layer is not part of the baseline.
 
@@ -52,9 +52,9 @@ GitHub is the source of truth for application code and deployment configuration.
 | Phase 10 | Security + Secrets + IAM | **DEPLOYMENT AUTHENTICATION + PRODUCTION DEPLOYMENT VALIDATED** |
 | Phase 11 | Monitoring + Observability | **COMPLETE / FROZEN — VERIFIED MONITORING SCOPE** |
 | Phase 12 | Drift + Retraining | **COMPLETE / FROZEN — SYNTHETIC VALIDATION SCOPE** |
-| Phase 13 | Canary + Production Releases | **IMPLEMENTED / AWAITING CI + DEPLOYMENT VALIDATION** |
+| Phase 13 | Canary + Production Releases | **COMPLETE / FROZEN — MODEL v8 PRODUCTION RELEASE VALIDATED** |
 
-**Freeze rule:** Phases 1–12 are closed for their validated scopes. The protected v1 serving baseline remains frozen while Phase 13 is evaluated.
+**Production lifecycle baseline: COMPLETE / FROZEN.** Future work is treated as a new, independently scoped change under the verification and change-control procedure.
 
 ## Verification and no-guessing policy
 
@@ -67,6 +67,31 @@ Inspect actual state → Record exact evidence → Make one targeted change
 ```
 
 Do not guess model versions, endpoint configuration, tables, permissions, runtime versions, or deployment state. Documentation distinguishes **implemented**, **queryable**, **observed**, **validated**, and **complete**.
+
+## Current production release — Model v8
+
+The latest independently verified production release is:
+
+```text
+Endpoint: dev-netcare-readmission
+Registered model: netcareaidatabricks.default.readmission_model
+Registered version: 8
+Served model: readmission_model-8
+Configuration version: 2
+
+Endpoint state: READY
+Configuration update: NOT_UPDATING
+Served entities: 1
+Traffic: 100% → readmission_model-8
+Deployment: DEPLOYMENT_READY
+Workload: Small / CPU
+Scale to zero: enabled
+Usage tracking: enabled
+```
+
+The production release was executed through the manual GitHub Actions `Release Production` workflow with model version `8`. The workflow retains an explicit rollback choice of model version `1`.
+
+No canary traffic percentage is claimed: the verified candidate and protected baseline are separate serving endpoints. The release mechanism provides controlled promotion and explicit rollback without inventing a traffic split.
 
 ## Validated serving baseline
 
@@ -96,7 +121,7 @@ scale-to-zero enabled
 config version 1
 ```
 
-The protected baseline remains:
+The protected rollback baseline remains:
 
 ```text
 Endpoint: cidev-netcare-readmission
@@ -105,8 +130,6 @@ Registered version: 1
 Traffic: 100%
 State: READY
 ```
-
-The protected v1 endpoint has not been changed through Phase 12.
 
 ## Phase 9 — Existing-System Integration
 
@@ -164,13 +187,13 @@ Detailed evidence is maintained in [`docs/retraining.md`](docs/retraining.md).
 
 ## Phase 13 — Canary + Production Releases
 
-**Implemented in GitHub; awaiting CI and deployment validation.**
+**Status: COMPLETE / FROZEN — MODEL v8 PRODUCTION RELEASE VALIDATED.**
 
-Phase 13 adds a manual GitHub Actions production release workflow around the existing candidate/protected model versions. It accepts only the currently verified release choices: model `8` for controlled promotion and model `1` for explicit rollback.
+Phase 13 adds a manual GitHub Actions production release workflow around the existing candidate/protected model versions. It accepts only the verified release choices: model `8` for controlled promotion and model `1` for explicit rollback.
 
 The workflow uses the existing production OIDC authentication, Python `3.11.16`, Databricks CLI `1.15.0`, bundle validation, deployment-plan preview, bundle deployment, and post-deployment serving verification. It does not invent a traffic split or modify the isolated candidate endpoint.
 
-Phase 13 is not complete until the exact implementation commit passes CI/deployment validation and the resulting production serving state is independently verified.
+The model `8` production release is independently verified by the live Databricks endpoint state recorded above.
 
 ## Technology stack
 
